@@ -2,6 +2,7 @@ import math
 import os
 import time
 
+
 import kornia.augmentation as K
 import numpy as np
 import rasterio
@@ -73,7 +74,7 @@ def run(input, model, out, resize_factor, gpu, patch_size, batch_size, padding, 
 
     dataset = SingleRasterDataset(input, transforms=preprocess)
     sampler = GridGeoSampler(dataset, size=patch_size, stride=stride)
-    dataloader = DataLoader(dataset, sampler=sampler, batch_size=batch_size, num_workers=6, collate_fn=stack_samples)
+    dataloader = DataLoader(dataset, sampler=sampler, batch_size=batch_size, num_workers=0, collate_fn=stack_samples)
 
     # Run inference
     output_mask = np.zeros((input_height, input_width), dtype=np.uint8)
