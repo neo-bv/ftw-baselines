@@ -325,16 +325,22 @@ def main():
         
         # Input files (all in the base directory)
         aoi_shapefile = os.path.join(base_path, "SECTEURS.shp")
+        # input_vectors = [
+        #     os.path.join(base_path, "morocco_gdal_boundaries.gpkg"),
+        #     os.path.join(base_path, "morocco_mid_mosaic_boundaries.gpkg"),
+        #     os.path.join(base_path, "morocco_tr_aoi_boundaries.gpkg")
+        # ]
         input_vectors = [
-            os.path.join(base_path, "morocco_gdal_boundaries.gpkg"),
-            os.path.join(base_path, "morocco_mid_mosaic_boundaries.gpkg"),
-            os.path.join(base_path, "morocco_tr_aoi_boundaries.gpkg")
+            os.path.join(base_path, "morocco_mid_mosaic_morocco_trained.gpkg"),
+            os.path.join(base_path, "morocco_mosaic_morocco_trained.gpkg"),
+            os.path.join(base_path, "morocco_tr_aoi_morocco_trained.gpkg")
         ]
-        
         # Output files (also in the base directory)
-        temp_dir = os.path.join(base_path, "temp_clipped_multipolygon")
-        final_output = os.path.join(base_path, "morocco_merged_boundaries_ALL_AOI.gpkg")
-        
+        # temp_dir = os.path.join(base_path, "temp_clipped_multipolygon")
+        # final_output = os.path.join(base_path, "morocco_merged_boundaries_ALL_AOI.gpkg")
+        temp_dir = os.path.join(base_path, "temp_clipped_morocco_trained")
+        final_output = os.path.join(base_path, "morocco_merged_morocco_trained_ALL_AOI.gpkg")
+
         # Log all file paths
         logger.info(f"AOI shapefile: {aoi_shapefile}")
         logger.info(f"Input vectors: {input_vectors}")

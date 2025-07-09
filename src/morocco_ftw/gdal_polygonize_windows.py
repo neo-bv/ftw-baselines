@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Windows-compatible GDAL polygonization script for Morocco raster.
-This script uses GDAL Python bindings directly, avoiding Windows executable issues.
 """
 
 import os
