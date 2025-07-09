@@ -1,25 +1,4 @@
-# import os
-# from ftw_cli.model import fit
-
-# # Set environment variables
-# os.environ["GDAL_DISABLE_READDIR_ON_OPEN"] = "EMPTY_DIR"
-# os.environ["AWS_NO_SIGN_REQUEST"] = "YES"
-
-# print("Starting Morocco FTW Training...")
-# print("Total patches: 34 (28 train, 3 val, 3 test)")
-
-# try:
-#     fit(
-#         config="morocco_config.yaml",
-#         ckpt_path=None,
-#         cli_args=[]
-#     )
-#     print("Training completed!")
-# except Exception as e:
-#     print(f"Training failed: {e}")
-#     import traceback
-#     traceback.print_exc()
-
+#This script is used for training
 
 
     #!/usr/bin/env python3
