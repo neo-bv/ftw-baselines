@@ -1,5 +1,5 @@
 trainer:
-  max_epochs: 100
+  max_epochs: 50
   log_every_n_steps: 10
   accelerator: cpu  # Changed from 'gpu' to 'cpu'
   devices: 1
@@ -27,10 +27,10 @@ model:
     backbone: "efficientnet-b3"
     weights: true
     patch_weights: false
-    in_channels: 8
-    num_classes: 3
+    in_channels: 8 #Stacked window a&b
+    num_classes: 3 #background, field, boundries
     num_filters: 64
-    ignore_index: 0
+    ignore_index: 0 #ignore background pixels
     lr: 1e-3
     patience: 100
 
