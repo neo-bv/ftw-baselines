@@ -1,3 +1,4 @@
+#This scripts is used for calculate the weighte for three classes
 import os
 import numpy as np
 import rasterio
@@ -5,13 +6,13 @@ from collections import Counter
 from pathlib import Path
 
 def calculate_class_weights(data_root, country="morocco"):
-    """Calculate class weights for Morocco 3-class dataset"""
+    """Calculate class weights for 3-class dataset"""
     
     country_path = Path(data_root) / "ftw" / country
     masks_3class_path = country_path / "label_masks" / "semantic_3class"
     
     if not masks_3class_path.exists():
-        print(f"3-class masks not found at {masks_3class_path}")
+        print(f"Masks not found at {masks_3class_path}")
         return None
     
     print(f"Analyzing masks in: {masks_3class_path}")
@@ -42,32 +43,30 @@ def calculate_class_weights(data_root, country="morocco"):
     
     print(f"\nCalculated weights (inverse frequency):")
     for class_id in sorted(class_counts.keys()):
-        if class_id == 0:  # Usually background/ignore class
-            weight = 0.0  # Don't weight background class
+        if class_id == 0:  # Background/ignore class
+            weight = 0.0
         else:
-            # Inverse frequency weight
             class_freq = class_counts[class_id] / total_pixels
             weight = 1.0 / (num_classes * class_freq)
         
         weights.append(weight)
         print(f"Class {class_id}: {weight:.3f}")
     
-    # Normalize weights so they sum to number of classes
+    # Normalize weights
     weights = np.array(weights)
     if weights.sum() > 0:
         weights = weights * num_classes / weights.sum()
     
     print(f"\nNormalized weights: {weights.tolist()}")
-    print(f"Suggested config: class_weights: {[round(w, 3) for w in weights]}")
+    print(f"Config format: class_weights: {[round(w, 3) for w in weights]}")
     
     return weights
 
 if __name__ == "__main__":
-    # Update this path to your data directory
-    data_root = "data"  # Adjust if your data is elsewhere
+    data_root = "data"
     
     weights = calculate_class_weights(data_root, "morocco")
     
     if weights is not None:
-        print(f"\nAdd this to your morocco_config.yaml:")
+        print(f"\nFor morocco_config.yaml:")
         print(f"class_weights: {[round(w, 3) for w in weights]}")

@@ -1,6 +1,7 @@
+#This script is used for using trained model to make predictions on three sentinel2 iamges
 #!/usr/bin/env python3
 """
-Extract weights directly from checkpoint and reconstruct model manually
+Extract weights from checkpoint and run inference on Sentinel-2 images
 """
 
 import os
@@ -68,7 +69,7 @@ class SimpleRasterDataset(Dataset):
                 padded_data[:, :patch_height, :patch_width] = data
                 data = padded_data
         
-        # Convert to tensor and normalize (divide by 3000 as in FTW preprocessing)
+        # Convert to tensor and normalize
         data = torch.from_numpy(data).float() / 3000.0
         
         return {
@@ -95,8 +96,7 @@ def extract_model_weights(checkpoint_path):
     
     for key, value in state_dict.items():
         if key.startswith('model.'):
-            # Remove 'model.' prefix to match raw smp.Unet structure
-            clean_key = key[6:]  # Remove 'model.'
+            clean_key = key[6:]  # Remove 'model.' prefix
             cleaned_state_dict[clean_key] = value
     
     print(f"Extracted {len(cleaned_state_dict)} weight tensors")
@@ -110,7 +110,7 @@ def create_model_from_weights(state_dict, hparams):
         if hparams['model'] == 'unet':
             model = smp.Unet(
                 encoder_name=hparams['backbone'],
-                encoder_weights=None,  # Don't load pretrained weights
+                encoder_weights=None,
                 in_channels=hparams['in_channels'],
                 classes=hparams['num_classes'],
             )
@@ -121,41 +121,43 @@ def create_model_from_weights(state_dict, hparams):
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
         
         if missing_keys:
-            print(f"⚠️ Missing keys: {len(missing_keys)}")
-            print(f"First few: {missing_keys[:5]}")
+            print(f"Missing keys: {len(missing_keys)}")
+            if len(missing_keys) <= 5:
+                print(f"Keys: {missing_keys}")
         
         if unexpected_keys:
-            print(f"⚠️ Unexpected keys: {len(unexpected_keys)}")
-            print(f"First few: {unexpected_keys[:5]}")
+            print(f"Unexpected keys: {len(unexpected_keys)}")
+            if len(unexpected_keys) <= 5:
+                print(f"Keys: {unexpected_keys}")
         
         if not missing_keys and not unexpected_keys:
-            print("✅ All weights loaded perfectly!")
-        elif len(missing_keys) < 10:  # Allow some missing keys
-            print("✅ Model loaded with minor issues (should still work)")
+            print("All weights loaded successfully")
+        elif len(missing_keys) < 10:
+            print("Model loaded with minor issues")
         else:
-            print("❌ Too many missing keys - model may not work properly")
+            print("Warning: Too many missing keys - model may not work properly")
             return None
             
         model.eval()
         return model
         
     except ImportError:
-        print("❌ segmentation_models_pytorch not available")
+        print("Error: segmentation_models_pytorch not available")
         return None
 
 def run_inference_on_image(image_path, model_path, output_path, batch_size=2, patch_size=512, padding=64):
     """Run inference on a single image"""
     
-    print(f"\n📍 Processing: {image_path}")
-    print(f"📄 Output: {output_path}")
+    print(f"Processing: {image_path}")
+    print(f"Output: {output_path}")
     
     # Check inputs
     if not os.path.exists(image_path):
-        print(f"❌ Image not found: {image_path}")
+        print(f"Image not found: {image_path}")
         return False
         
     if not os.path.exists(model_path):
-        print(f"❌ Model not found: {model_path}")
+        print(f"Model not found: {model_path}")
         return False
     
     # Extract weights and create model
@@ -232,14 +234,14 @@ def run_inference_on_image(image_path, model_path, output_path, batch_size=2, pa
         dst.colorinterp = [ColorInterp.palette]
         dst.write(output_mask, 1)
     
-    print(f"✅ Saved predictions to: {output_path}")
+    print(f"Saved predictions to: {output_path}")
     return True
 
 def test_checkpoint_content(checkpoint_path):
     """Test what's in the checkpoint file"""
     try:
         checkpoint = torch.load(checkpoint_path, map_location='cpu')
-        print("✅ Checkpoint loaded successfully!")
+        print("Checkpoint loaded successfully")
         print(f"Keys in checkpoint: {list(checkpoint.keys())}")
         
         if 'state_dict' in checkpoint:
@@ -250,19 +252,19 @@ def test_checkpoint_content(checkpoint_path):
             
         return True
     except Exception as e:
-        print(f"❌ Error loading checkpoint: {e}")
+        print(f"Error loading checkpoint: {e}")
         return False
 
 def main():
     """Main inference function"""
-    print("🇲🇦 Morocco Model Inference (Weight Extraction)")
-    print("=" * 55)
+    print("Morocco Model Inference (Weight Extraction)")
+    print("-" * 50)
     
     # Configuration
     model_path = r"logs\Morocco-FTW\lightning_logs\version_4\checkpoints\epoch=2-val_loss=0.67.ckpt"
     
     # Test checkpoint first
-    print("🔍 Testing checkpoint file...")
+    print("Testing checkpoint file...")
     if not test_checkpoint_content(model_path):
         return
     
@@ -276,7 +278,7 @@ def main():
     success_count = 0
     for img_path in images:
         if not os.path.exists(img_path):
-            print(f"⚠️ Image not found: {img_path}")
+            print(f"Image not found: {img_path}")
             continue
             
         # Generate output name
@@ -296,18 +298,18 @@ def main():
         
         if success:
             elapsed = time.time() - start_time
-            print(f"⏱️ Completed in {elapsed:.1f} seconds")
+            print(f"Completed in {elapsed:.1f} seconds")
             success_count += 1
         else:
-            print(f"❌ Failed to process {img_path}")
+            print(f"Failed to process {img_path}")
     
-    print(f"\n✅ Weight extraction inference completed! ({success_count} images processed)")
-    print("\n📄 Output files:")
+    print(f"Inference completed - {success_count} images processed")
+    print("\nOutput files:")
     for f in ["morocco_mosaic_morocco_trained_extracted.tif", 
               "morocco_mid_mosaic_morocco_trained_extracted.tif",
               "morocco_tr_aoi_morocco_trained_extracted.tif"]:
         if os.path.exists(f):
-            print(f"  ✅ {f}")
+            print(f"  {f}")
 
 if __name__ == "__main__":
     main()

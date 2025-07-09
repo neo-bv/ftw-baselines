@@ -1,8 +1,8 @@
+#This script is used for using aoi vector to mask prediction vectors and merge them into whole big aoi
 #!/usr/bin/env python3
 """
-AOI Vector Masking and Merging Script - MULTI-POLYGON AOI VERSION
-Clips multiple vector files with ALL polygons in an AOI shapefile and merges them.
-Handles CRS transformations automatically.
+AOI Vector Masking and Merging Script
+Clips multiple vector files with all polygons in an AOI shapefile and merges them.
 """
 
 import os
@@ -11,13 +11,13 @@ from pathlib import Path
 import logging
 import traceback
 
-# Set up logging to both console and file
+# Set up logging
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('aoi_vector_merge_multipolygon.log')
+        logging.FileHandler('aoi_vector_merge.log')
     ]
 )
 logger = logging.getLogger(__name__)
@@ -53,17 +53,13 @@ def transform_geometry(geom, source_srs, target_srs):
     return geom_copy
 
 def create_combined_aoi_geometry(aoi_layer, target_srs):
-    """
-    Create a combined geometry from ALL polygons in the AOI layer.
-    Transform to target CRS if needed.
-    """
+    """Create a combined geometry from all polygons in the AOI layer"""
     aoi_srs = aoi_layer.GetSpatialRef()
     combined_geom = None
     polygon_count = 0
     
-    logger.info("Processing ALL AOI polygons...")
+    logger.info("Processing AOI polygons...")
     
-    # Reset reading to start from beginning
     aoi_layer.ResetReading()
     
     for feature in aoi_layer:
@@ -79,36 +75,24 @@ def create_combined_aoi_geometry(aoi_layer, target_srs):
             if combined_geom is None:
                 combined_geom = geom_transformed
             else:
-                # Union with existing geometry
                 combined_geom = combined_geom.Union(geom_transformed)
             
             polygon_count += 1
             logger.info(f"Added AOI polygon {polygon_count}")
     
-    logger.info(f"Combined {polygon_count} AOI polygons into single geometry")
+    logger.info(f"Combined {polygon_count} AOI polygons")
     
     if combined_geom:
         combined_area = combined_geom.GetArea()
         logger.info(f"Total AOI area: {combined_area:.2f} square units")
         
-        # Log extent
         envelope = combined_geom.GetEnvelope()
-        logger.info(f"Combined AOI extent: ({envelope[0]:.2f}, {envelope[2]:.2f}) to ({envelope[1]:.2f}, {envelope[3]:.2f})")
+        logger.info(f"AOI extent: ({envelope[0]:.2f}, {envelope[2]:.2f}) to ({envelope[1]:.2f}, {envelope[3]:.2f})")
     
     return combined_geom
 
 def clip_vector_with_aoi(input_vector, aoi_shapefile, output_vector):
-    """
-    Clip a vector file using ALL polygons in an AOI shapefile with automatic CRS handling.
-    
-    Args:
-        input_vector (str): Path to input vector file
-        aoi_shapefile (str): Path to AOI shapefile
-        output_vector (str): Path to output clipped vector file
-    
-    Returns:
-        bool: True if successful, False otherwise
-    """
+    """Clip a vector file using all polygons in an AOI shapefile"""
     try:
         logger.info(f"Starting clip operation: {input_vector}")
         
@@ -136,12 +120,12 @@ def clip_vector_with_aoi(input_vector, aoi_shapefile, output_vector):
         input_crs = get_layer_crs(input_ds)
         logger.info(f"Input CRS: {input_crs}")
         
-        # Determine target CRS (use input vector's CRS)
+        # Use input vector's CRS as target
         target_srs = input_srs
         target_crs = input_crs
         logger.info(f"Target CRS: {target_crs}")
         
-        # Create combined AOI geometry from ALL polygons
+        # Create combined AOI geometry
         combined_aoi_geom = create_combined_aoi_geometry(aoi_layer, target_srs)
         if not combined_aoi_geom:
             logger.error("Failed to create combined AOI geometry")
@@ -157,22 +141,17 @@ def clip_vector_with_aoi(input_vector, aoi_shapefile, output_vector):
             logger.error(f"Could not create output vector: {output_vector}")
             return False
         
-        # Get geometry type from input layer
         geom_type = input_layer.GetGeomType()
-        
-        # Create output layer with target CRS
         output_layer = output_ds.CreateLayer("clipped", target_srs, geom_type)
         
-        # Copy field definitions from input layer
+        # Copy field definitions
         input_defn = input_layer.GetLayerDefn()
         for i in range(input_defn.GetFieldCount()):
             field_defn = input_defn.GetFieldDefn(i)
             output_layer.CreateField(field_defn)
         
-        # Reset reading for input layer
+        # Process features
         input_layer.ResetReading()
-        
-        # Process each feature in input layer
         clipped_count = 0
         total_count = input_layer.GetFeatureCount()
         logger.info(f"Processing {total_count} features against combined AOI...")
@@ -180,11 +159,9 @@ def clip_vector_with_aoi(input_vector, aoi_shapefile, output_vector):
         for feature in input_layer:
             geom = feature.GetGeometryRef()
             if geom and combined_aoi_geom.Intersects(geom):
-                # Clip geometry with combined AOI
                 clipped_geom = geom.Intersection(combined_aoi_geom)
                 
                 if clipped_geom and not clipped_geom.IsEmpty():
-                    # Create new feature
                     new_feature = ogr.Feature(output_layer.GetLayerDefn())
                     new_feature.SetGeometry(clipped_geom)
                     
@@ -192,7 +169,6 @@ def clip_vector_with_aoi(input_vector, aoi_shapefile, output_vector):
                     for i in range(input_defn.GetFieldCount()):
                         new_feature.SetField(i, feature.GetField(i))
                     
-                    # Add feature to output layer
                     output_layer.CreateFeature(new_feature)
                     clipped_count += 1
                     
@@ -206,7 +182,7 @@ def clip_vector_with_aoi(input_vector, aoi_shapefile, output_vector):
         # Clean up
         del output_layer, output_ds, input_ds, aoi_ds
         
-        return clipped_count > 0  # Return False if no features were clipped
+        return clipped_count > 0
         
     except Exception as e:
         logger.error(f"Error clipping {input_vector}: {str(e)}")
@@ -214,16 +190,7 @@ def clip_vector_with_aoi(input_vector, aoi_shapefile, output_vector):
         return False
 
 def merge_vectors(input_vectors, output_vector):
-    """
-    Merge multiple vector files into a single output file.
-    
-    Args:
-        input_vectors (list): List of input vector file paths
-        output_vector (str): Path to output merged vector file
-    
-    Returns:
-        bool: True if successful, False otherwise
-    """
+    """Merge multiple vector files into a single output file"""
     try:
         logger.info(f"Starting merge of {len(input_vectors)} files...")
         
@@ -245,7 +212,6 @@ def merge_vectors(input_vectors, output_vector):
                 logger.warning(f"Input vector does not exist: {input_vector}")
                 continue
                 
-            # Open input vector
             input_ds = ogr.Open(input_vector, 0)
             if not input_ds:
                 logger.warning(f"Could not open input vector: {input_vector}")
@@ -265,7 +231,7 @@ def merge_vectors(input_vectors, output_vector):
                 geom_type = input_layer.GetGeomType()
                 output_layer = output_ds.CreateLayer("merged", srs, geom_type)
                 
-                # Copy field definitions from first layer
+                # Copy field definitions
                 input_defn = input_layer.GetLayerDefn()
                 for j in range(input_defn.GetFieldCount()):
                     field_defn = input_defn.GetFieldDefn(j)
@@ -283,7 +249,7 @@ def merge_vectors(input_vectors, output_vector):
                     new_feature = ogr.Feature(output_layer.GetLayerDefn())
                     new_feature.SetGeometry(geom)
                     
-                    # Copy attributes (handle potential field mismatches)
+                    # Copy attributes
                     output_defn = output_layer.GetLayerDefn()
                     for j in range(min(input_defn.GetFieldCount(), output_defn.GetFieldCount())):
                         field_name = input_defn.GetFieldDefn(j).GetName()
@@ -311,37 +277,40 @@ def merge_vectors(input_vectors, output_vector):
         return False
 
 def main():
-    """Main function to process AOI masking and vector merging."""
+    """Main function to process AOI masking and vector merging"""
     
     try:
-        logger.info("=== Starting AOI Vector Masking and Merging Process (MULTI-POLYGON VERSION) ===")
+        logger.info("Starting AOI Vector Masking and Merging Process")
         
-        # Get the script directory and go up two levels to reach the base directory
+        # Get paths
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        base_path = os.path.dirname(os.path.dirname(script_dir))  # Go up from src/morocco_ftw to base
+        base_path = os.path.dirname(os.path.dirname(script_dir))
         
         logger.info(f"Script directory: {script_dir}")
         logger.info(f"Base directory: {base_path}")
         
-        # Input files (all in the base directory)
+        # Input files
         aoi_shapefile = os.path.join(base_path, "SECTEURS.shp")
+        
+        #   baseline files
         # input_vectors = [
         #     os.path.join(base_path, "morocco_gdal_boundaries.gpkg"),
         #     os.path.join(base_path, "morocco_mid_mosaic_boundaries.gpkg"),
         #     os.path.join(base_path, "morocco_tr_aoi_boundaries.gpkg")
         # ]
+        # temp_dir = os.path.join(base_path, "temp_clipped_multipolygon")
+        # final_output = os.path.join(base_path, "morocco_merged_boundaries_ALL_AOI.gpkg")
+        
+        #   trained files
         input_vectors = [
             os.path.join(base_path, "morocco_mid_mosaic_morocco_trained.gpkg"),
             os.path.join(base_path, "morocco_mosaic_morocco_trained.gpkg"),
             os.path.join(base_path, "morocco_tr_aoi_morocco_trained.gpkg")
         ]
-        # Output files (also in the base directory)
-        # temp_dir = os.path.join(base_path, "temp_clipped_multipolygon")
-        # final_output = os.path.join(base_path, "morocco_merged_boundaries_ALL_AOI.gpkg")
         temp_dir = os.path.join(base_path, "temp_clipped_morocco_trained")
         final_output = os.path.join(base_path, "morocco_merged_morocco_trained_ALL_AOI.gpkg")
 
-        # Log all file paths
+        # Log paths
         logger.info(f"AOI shapefile: {aoi_shapefile}")
         logger.info(f"Input vectors: {input_vectors}")
         logger.info(f"Temp directory: {temp_dir}")
@@ -351,18 +320,17 @@ def main():
         logger.info("Creating temporary directory...")
         os.makedirs(temp_dir, exist_ok=True)
         
-        # Check if files exist and log AOI polygon count
+        # Check AOI shapefile
         logger.info("Checking AOI shapefile...")
         if not os.path.exists(aoi_shapefile):
             logger.error(f"AOI shapefile not found: {aoi_shapefile}")
             return False
         else:
-            # Count AOI polygons
             aoi_ds = ogr.Open(aoi_shapefile, 0)
             if aoi_ds:
                 aoi_layer = aoi_ds.GetLayer()
                 aoi_count = aoi_layer.GetFeatureCount()
-                logger.info(f"✓ AOI shapefile found with {aoi_count} polygons: {aoi_shapefile}")
+                logger.info(f"AOI shapefile found with {aoi_count} polygons: {aoi_shapefile}")
                 del aoi_ds
             else:
                 logger.error(f"Could not open AOI shapefile: {aoi_shapefile}")
@@ -370,12 +338,12 @@ def main():
         
         for vector in input_vectors:
             if os.path.exists(vector):
-                logger.info(f"✓ Input vector found: {vector}")
+                logger.info(f"Input vector found: {vector}")
             else:
-                logger.warning(f"✗ Input vector not found: {vector}")
+                logger.warning(f"Input vector not found: {vector}")
         
-        # Step 1: Clip each vector with ALL AOI polygons
-        logger.info("=== Starting AOI clipping process (ALL POLYGONS) ===")
+        # Clip each vector with AOI polygons
+        logger.info("Starting AOI clipping process")
         clipped_vectors = []
         
         for i, input_vector in enumerate(input_vectors):
@@ -383,16 +351,15 @@ def main():
                 logger.warning(f"Input vector not found: {input_vector}")
                 continue
                 
-            # Generate output filename
             base_name = Path(input_vector).stem
             clipped_output = os.path.join(temp_dir, f"{base_name}_clipped_ALL_AOI.gpkg")
             
-            logger.info(f"Clipping {input_vector} with ALL AOI polygons...")
+            logger.info(f"Clipping {input_vector} with AOI polygons...")
             if clip_vector_with_aoi(input_vector, aoi_shapefile, clipped_output):
                 clipped_vectors.append(clipped_output)
-                logger.info(f"✓ Successfully clipped: {clipped_output}")
+                logger.info(f"Successfully clipped: {clipped_output}")
             else:
-                logger.error(f"✗ Failed to clip {input_vector}")
+                logger.error(f"Failed to clip {input_vector}")
         
         if not clipped_vectors:
             logger.error("No vectors were successfully clipped")
@@ -400,10 +367,10 @@ def main():
         
         logger.info(f"Successfully clipped {len(clipped_vectors)} vectors")
         
-        # Step 2: Merge clipped vectors
-        logger.info("=== Starting vector merging process ===")
+        # Merge clipped vectors
+        logger.info("Starting vector merging process")
         if merge_vectors(clipped_vectors, final_output):
-            logger.info(f"✓ Successfully created merged output: {final_output}")
+            logger.info(f"Successfully created merged output: {final_output}")
             
             # Verify output
             final_ds = ogr.Open(final_output, 0)
@@ -415,7 +382,7 @@ def main():
             
             return True
         else:
-            logger.error("✗ Failed to merge vectors")
+            logger.error("Failed to merge vectors")
             return False
             
     except Exception as e:
@@ -425,20 +392,18 @@ def main():
 
 if __name__ == "__main__":
     try:
-        print("Starting AOI Vector Masking and Merging Script (ALL AOI POLYGONS VERSION)...")
+        print("Starting AOI Vector Masking and Merging Script...")
         success = main()
         if success:
-            print("=== Process completed successfully! ===")
-            print("Check the file: morocco_merged_boundaries_ALL_AOI.gpkg")
-            logger.info("Process completed successfully!")
+            print("Process completed successfully")
+            logger.info("Process completed successfully")
             sys.exit(0)
         else:
-            print("=== Process failed! Check the log file for details ===")
-            logger.error("Process failed!")
+            print("Process failed - check log file for details")
+            logger.error("Process failed")
             sys.exit(1)
     except Exception as e:
-        print(f"CRITICAL ERROR: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
-        logger.error(f"CRITICAL ERROR: {str(e)}")
+        print(f"Critical error: {str(e)}")
+        logger.error(f"Critical error: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         sys.exit(1)

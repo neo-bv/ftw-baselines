@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Windows-compatible GDAL polygonization script for Morocco raster.
+GDAL polygonization script for raster data.
 """
 
 import os
@@ -19,50 +19,43 @@ def check_gdal_installation():
         return False
 
 def polygonize_raster(input_raster, output_vector, filter_value=1):
-    """
-    Polygonize raster using GDAL Python bindings.
-    """
+    """Polygonize raster using GDAL Python bindings."""
+    
     from osgeo import gdal, ogr, osr
     
-    print(f"Polygonizing: {input_raster}")
+    print(f"Input: {input_raster}")
     print(f"Output: {output_vector}")
     
-    # Enable GDAL exceptions
     gdal.UseExceptions()
     
     try:
-        # Open the source raster
+        # Open source raster
         src_ds = gdal.Open(input_raster, gdal.GA_ReadOnly)
         if src_ds is None:
             raise Exception(f"Could not open {input_raster}")
         
         print(f"Raster size: {src_ds.RasterXSize} x {src_ds.RasterYSize}")
         
-        # Get the raster band
         srcband = src_ds.GetRasterBand(1)
         
-        # Create a memory layer for initial polygonization
+        # Create memory layer for polygonization
         mem_driver = ogr.GetDriverByName('Memory')
         mem_ds = mem_driver.CreateDataSource('temp')
         
-        # Get spatial reference from raster
         srs = osr.SpatialReference()
         srs.ImportFromWkt(src_ds.GetProjection())
         
-        # Create memory layer
         mem_layer = mem_ds.CreateLayer('polygons', srs=srs)
         
-        # Add a field for the raster values
         field_defn = ogr.FieldDefn('DN', ogr.OFTInteger)
         mem_layer.CreateField(field_defn)
         
-        print("Running polygonization (this may take a few minutes)...")
+        print("Running polygonization...")
         start_time = time.time()
         
-        # Polygonize the raster
         gdal.Polygonize(srcband, None, mem_layer, 0, [], callback=gdal.TermProgress_nocb)
         
-        print(f"Polygonization completed in {time.time() - start_time:.1f} seconds")
+        print(f"Completed in {time.time() - start_time:.1f} seconds")
         
         # Create output file
         out_driver = ogr.GetDriverByName('GPKG')
@@ -72,7 +65,7 @@ def polygonize_raster(input_raster, output_vector, filter_value=1):
         out_ds = out_driver.CreateDataSource(output_vector)
         out_layer = out_ds.CreateLayer('field_boundaries', srs=srs)
         
-        # Add fields
+        # Add output fields
         id_field = ogr.FieldDefn('id', ogr.OFTString)
         out_layer.CreateField(id_field)
         
@@ -102,10 +95,10 @@ def polygonize_raster(input_raster, output_vector, filter_value=1):
             
             # Calculate area and perimeter
             area_sq_m = geom.GetArea()
-            area_ha = area_sq_m * 0.0001  # Convert to hectares
+            area_ha = area_sq_m * 0.0001
             perimeter_m = geom.Boundary().Length()
             
-            # Skip very small polygons (less than 0.01 hectares)
+            # Skip very small polygons
             if area_ha < 0.01:
                 continue
             
@@ -119,19 +112,18 @@ def polygonize_raster(input_raster, output_vector, filter_value=1):
             out_layer.CreateFeature(out_feature)
             filtered_count += 1
             
-            # Progress update
             if filtered_count % 1000 == 0:
-                print(f"  Processed {filtered_count} field boundaries...")
+                print(f"Processed {filtered_count} features...")
         
-        print(f"Total polygons found: {feature_count}")
-        print(f"Field boundaries (DN={filter_value}): {filtered_count}")
+        print(f"Total polygons: {feature_count}")
+        print(f"Filtered polygons: {filtered_count}")
         
-        # Clean up
+        # Cleanup
         src_ds = None
         mem_ds = None
         out_ds = None
         
-        print(f"Successfully created: {output_vector}")
+        print(f"Output saved to: {output_vector}")
         return True
         
     except Exception as e:
@@ -140,8 +132,7 @@ def polygonize_raster(input_raster, output_vector, filter_value=1):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python gdal_polygonize_windows.py <input_raster> [output_vector]")
-        print("Example: python gdal_polygonize_windows.py morocco_mosaic-inf.tif morocco_boundaries.gpkg")
+        print("Usage: python gdal_polygonize.py <input_raster> [output_vector]")
         return 1
     
     input_raster = sys.argv[1]
@@ -150,25 +141,22 @@ def main():
         output_vector = sys.argv[2]
     else:
         base_name = os.path.splitext(input_raster)[0]
-        output_vector = f"{base_name}_gdal_boundaries.gpkg"
+        output_vector = f"{base_name}_boundaries.gpkg"
     
     if not os.path.exists(input_raster):
         print(f"Error: Input file {input_raster} does not exist")
         return 1
     
-    # Check GDAL installation
     if not check_gdal_installation():
         return 1
     
-    # Run polygonization
     success = polygonize_raster(input_raster, output_vector, filter_value=1)
     
     if success:
-        print(f"\n✓ Success! Output saved to: {output_vector}")
-        print("You can now open this file in QGIS to compare with your original result.")
+        print("Polygonization completed successfully")
         return 0
     else:
-        print("\n✗ Polygonization failed!")
+        print("Polygonization failed")
         return 1
 
 if __name__ == "__main__":
