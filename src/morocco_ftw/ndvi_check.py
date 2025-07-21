@@ -45,6 +45,20 @@ def calculate_ndvi(red, nir):
     )
     return np.clip(ndvi, -1, 1)
 
+def save_ndvi_image(ndvi_array, profile, output_path):
+    """Save NDVI array as GeoTIFF"""
+    profile_ndvi = profile.copy()
+    profile_ndvi.update({
+        'count': 1,
+        'dtype': 'float32',
+        'nodata': np.nan,
+        'compress': 'lzw'  # Add compression to reduce file size
+    })
+    
+    with rasterio.open(output_path, 'w', **profile_ndvi) as dst:
+        dst.write(ndvi_array, 1)
+    print(f"  Saved NDVI image: {output_path}")
+
 def process_aoi(vector_path, sentinel_path, aoi_name):
     """Process one AOI pair"""
     print(f"Processing {aoi_name}...")
@@ -71,6 +85,22 @@ def process_aoi(vector_path, sentinel_path, aoi_name):
         
         ndvi_a = calculate_ndvi(red_a, nir_a)
         ndvi_b = calculate_ndvi(red_b, nir_b)
+        
+        # Save NDVI images for this AOI
+        ndvi_dir = os.path.join(output_dir, "NDVI_Images")
+        os.makedirs(ndvi_dir, exist_ok=True)
+        
+        ndvi_a_path = os.path.join(ndvi_dir, f"{aoi_name}_NDVI_WindowA.tif")
+        ndvi_b_path = os.path.join(ndvi_dir, f"{aoi_name}_NDVI_WindowB.tif")
+        ndvi_diff_path = os.path.join(ndvi_dir, f"{aoi_name}_NDVI_Difference.tif")
+        
+        # Calculate NDVI difference
+        ndvi_difference = np.abs(ndvi_a - ndvi_b)
+        
+        # Save NDVI images
+        save_ndvi_image(ndvi_a, src.profile, ndvi_a_path)
+        save_ndvi_image(ndvi_b, src.profile, ndvi_b_path)
+        save_ndvi_image(ndvi_difference, src.profile, ndvi_diff_path)
         
         # Reproject polygons if needed for processing
         gdf_for_processing = gdf.copy()
@@ -101,12 +131,18 @@ def process_aoi(vector_path, sentinel_path, aoi_name):
                     masked_a, _ = mask(src_a, geom, crop=True, nodata=np.nan)
                     valid_a = masked_a[0][~np.isnan(masked_a[0])]
                     ndvi_a_mean = np.mean(valid_a) if len(valid_a) > 0 else np.nan
+                    ndvi_a_std = np.std(valid_a) if len(valid_a) > 0 else np.nan
+                    ndvi_a_min = np.min(valid_a) if len(valid_a) > 0 else np.nan
+                    ndvi_a_max = np.max(valid_a) if len(valid_a) > 0 else np.nan
                 
                 # Window B NDVI
                 with rasterio.open(temp_b) as src_b:
                     masked_b, _ = mask(src_b, geom, crop=True, nodata=np.nan)
                     valid_b = masked_b[0][~np.isnan(masked_b[0])]
                     ndvi_b_mean = np.mean(valid_b) if len(valid_b) > 0 else np.nan
+                    ndvi_b_std = np.std(valid_b) if len(valid_b) > 0 else np.nan
+                    ndvi_b_min = np.min(valid_b) if len(valid_b) > 0 else np.nan
+                    ndvi_b_max = np.max(valid_b) if len(valid_b) > 0 else np.nan
                 
                 # Apply new filter conditions:
                 # 1. NDVI > 0.15 in both windows (avoid bare soil)
@@ -126,7 +162,13 @@ def process_aoi(vector_path, sentinel_path, aoi_name):
                     'aoi_name': aoi_name,
                     'polygon_id': f"{aoi_name}_{idx}",
                     'ndvi_a_mean': ndvi_a_mean,
+                    'ndvi_a_std': ndvi_a_std,
+                    'ndvi_a_min': ndvi_a_min,
+                    'ndvi_a_max': ndvi_a_max,
                     'ndvi_b_mean': ndvi_b_mean,
+                    'ndvi_b_std': ndvi_b_std,
+                    'ndvi_b_min': ndvi_b_min,
+                    'ndvi_b_max': ndvi_b_max,
                     'ndvi_diff': ndvi_diff,
                     'passed_filter': passed_filter,
                     'recommendation': 'KEEP' if passed_filter else 'EXCLUDE',
@@ -141,7 +183,13 @@ def process_aoi(vector_path, sentinel_path, aoi_name):
                     'aoi_name': aoi_name,
                     'polygon_id': f"{aoi_name}_{idx}",
                     'ndvi_a_mean': np.nan,
+                    'ndvi_a_std': np.nan,
+                    'ndvi_a_min': np.nan,
+                    'ndvi_a_max': np.nan,
                     'ndvi_b_mean': np.nan,
+                    'ndvi_b_std': np.nan,
+                    'ndvi_b_min': np.nan,
+                    'ndvi_b_max': np.nan,
                     'ndvi_diff': 0,
                     'passed_filter': False,
                     'recommendation': 'EXCLUDE',
@@ -156,12 +204,15 @@ def process_aoi(vector_path, sentinel_path, aoi_name):
     return pd.DataFrame(results), original_crs
 
 def main():
-    print("Morocco NDVI Field Filter")
+    print("Morocco NDVI Field Filter with Image Output")
     print("Conditions: NDVI > 0.15 in both windows AND difference > 0.1")
     print("=" * 60)
     
     all_results = []
     output_crs = None
+    
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
     
     # Process each AOI
     for pair in vector_tile_pairs:
@@ -195,7 +246,11 @@ def main():
     
     if len(kept_data) > 0:
         avg_diff_kept = kept_data['ndvi_diff'].mean()
+        avg_ndvi_a_kept = kept_data['ndvi_a_mean'].mean()
+        avg_ndvi_b_kept = kept_data['ndvi_b_mean'].mean()
         print(f"  Average NDVI difference (KEEP): {avg_diff_kept:.3f}")
+        print(f"  Average NDVI Window A (KEEP): {avg_ndvi_a_kept:.3f}")
+        print(f"  Average NDVI Window B (KEEP): {avg_ndvi_b_kept:.3f}")
     
     if len(excluded_data) > 0:
         avg_diff_excluded = excluded_data['ndvi_diff'].mean()
@@ -209,8 +264,6 @@ def main():
         print(f"  {aoi}: {aoi_kept}/{len(aoi_data)} kept ({aoi_kept/len(aoi_data)*100:.1f}%)")
     
     # Save results
-    os.makedirs(output_dir, exist_ok=True)
-    
     # All results
     gdf_all = gpd.GeoDataFrame(combined_df, geometry='geometry', crs=output_crs)
     gdf_all.to_file(os.path.join(output_dir, 'morocco_ndvi_filtered.shp'))
@@ -222,12 +275,18 @@ def main():
     gdf_keep.drop('geometry', axis=1).to_csv(os.path.join(output_dir, 'morocco_active_fields.csv'), index=False)
     
     print(f"\nFiles saved to {output_dir}:")
-    print("  - morocco_ndvi_filtered.shp (all polygons with filter results)")
-    print("  - morocco_active_fields.shp (only KEEP polygons)")
-    print("  - morocco_ndvi_results.csv (all results)")
-    print("  - morocco_active_fields.csv (active fields only)")
+    print("  Shapefiles and CSVs:")
+    print("    - morocco_ndvi_filtered.shp (all polygons with filter results)")
+    print("    - morocco_active_fields.shp (only KEEP polygons)")
+    print("    - morocco_ndvi_results.csv (all results)")
+    print("    - morocco_active_fields.csv (active fields only)")
+    print("  NDVI Images:")
+    print("    - NDVI_Images/{AOI_name}_NDVI_WindowA.tif")
+    print("    - NDVI_Images/{AOI_name}_NDVI_WindowB.tif")
+    print("    - NDVI_Images/{AOI_name}_NDVI_Difference.tif")
     
     print(f"\nDone! Use the KEEP polygons for FTW training.")
+    print("Check the NDVI_Images folder for visual analysis of NDVI values.")
 
 if __name__ == "__main__":
     main()
