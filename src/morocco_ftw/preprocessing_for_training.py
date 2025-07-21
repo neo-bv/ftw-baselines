@@ -107,6 +107,11 @@ def preprocess_for_ftw_training(sentinel_path, mask_path, output_dir, patch_size
     # Create dataset metadata
     create_dataset_metadata(output_dir, valid_patches, patch_size, min_labeled_pixels)
     
+    # Clean up temporary full images
+    for temp_file in [window_a_full, window_b_full]:
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+    
     return output_dir
 
 def count_labeled_pixels(mask_patch_path):
@@ -131,7 +136,8 @@ def count_labeled_pixels(mask_patch_path):
     # Estimate labeled pixels based on presence of labels
     if max_val > 0:
         total_pixels = 256 * 256
-        estimated_labeled = int(total_pixels * 0.5)  # Conservative estimate
+        # Better estimation by checking if field or boundary pixels exist
+        estimated_labeled = int(total_pixels * 0.3)  # Conservative estimate
         return estimated_labeled, total_pixels
     else:
         return 0, 256 * 256
@@ -179,7 +185,7 @@ def extract_patch(input_raster, output_patch, x_start, y_start, width, height):
 def create_dataset_metadata(output_dir, patch_count, patch_size, min_labeled_pixels):
     """Create metadata file for the dataset"""
     
-    metadata = f"""# Morocco FTW Training Dataset
+    metadata = f"""# Morocco FTW Training Dataset (Filtered Active Fields)
 Created: {datetime.now()}
 Total Valid Patches: {patch_count}
 Patch Size: {patch_size}x{patch_size}
@@ -188,10 +194,15 @@ Format: GeoTIFF
 CRS: EPSG:32629 (UTM Zone 29N)
 Pixel Size: 10m
 
+Data Source: NDVI-filtered active fields
+Filter Conditions:
+- NDVI > 0.15 in both windows (avoid bare soil)
+- |NDVI_A - NDVI_B| > 0.1 (temporal change)
+
 Structure:
 - window_a/: Sentinel-2 Window A patches (R,G,B,NIR)
 - window_b/: Sentinel-2 Window B patches (R,G,B,NIR)  
-- masks/: 3-class mask patches (1=field, 2=boundary)
+- masks/: 3-class mask patches (1=field, 2=boundary, 0=background)
 
 Band Order (Windows A & B):
 1. Red (B04)
@@ -201,6 +212,7 @@ Band Order (Windows A & B):
 
 Note: 
 - Only patches with sufficient labeled pixels are included
+- Only active fields (passed NDVI filter) are used for ground truth
 - Background pixels (value 0) represent unlabeled areas
 - Use ignore_index=0 during training to ignore unlabeled pixels
 """
@@ -210,33 +222,90 @@ Note:
 
 if __name__ == "__main__":
     
+    # OLD CONFIGURATION (commented out):
+    # morocco_pairs = [
+    #     {
+    #         'name': 'Morocco1_BL',
+    #         'sentinel': r'C:\Users\qin.xu\github\ftw-baselines\morocco_bl_gtaoi.tif',
+    #         'mask': r'C:\Users\qin.xu\github\ftw-baselines\Morocco1_BL_aligned.tif'
+    #     },
+    #     {
+    #         'name': 'Morocco2_TR', 
+    #         'sentinel': r'C:\Users\qin.xu\github\ftw-baselines\morocco_tr_gtaoi.tif',
+    #         'mask': r'C:\Users\qin.xu\github\ftw-baselines\Morocco2_TR_aligned.tif'
+    #     },
+    #     {
+    #         'name': 'Stef_BR',
+    #         'sentinel': r'C:\Users\qin.xu\github\ftw-baselines\morocco_br_gtaoi.tif',
+    #         'mask': r'C:\Users\qin.xu\github\ftw-baselines\Stef_BR_aligned.tif'
+    #     }
+    # ]
+    
+    # NEW CONFIGURATION - Using filtered polygon rasters
     morocco_pairs = [
         {
             'name': 'Morocco1_BL',
             'sentinel': r'C:\Users\qin.xu\github\ftw-baselines\morocco_bl_gtaoi.tif',
-            'mask': r'C:\Users\qin.xu\github\ftw-baselines\Morocco1_BL_aligned.tif'
+            'mask': r'C:\Users\qin.xu\github\ftw-baselines\morocco_filtered_3class_Morocco1_BL_aligned.tif'
         },
         {
             'name': 'Morocco2_TR', 
             'sentinel': r'C:\Users\qin.xu\github\ftw-baselines\morocco_tr_gtaoi.tif',
-            'mask': r'C:\Users\qin.xu\github\ftw-baselines\Morocco2_TR_aligned.tif'
+            'mask': r'C:\Users\qin.xu\github\ftw-baselines\morocco_filtered_3class_Morocco2_TR_aligned.tif'
         },
         {
             'name': 'Stef_BR',
             'sentinel': r'C:\Users\qin.xu\github\ftw-baselines\morocco_br_gtaoi.tif',
-            'mask': r'C:\Users\qin.xu\github\ftw-baselines\Stef_BR_aligned.tif'
+            'mask': r'C:\Users\qin.xu\github\ftw-baselines\morocco_filtered_3class_Stef_BR_aligned.tif'
         }
     ]
     
-    base_output_dir = r'C:\Users\qin.xu\github\ftw-baselines\morocco_ftw_training'
+    base_output_dir = r'C:\Users\qin.xu\github\ftw-baselines\morocco_ftw_training_filtered'
+    
+    # Check GDAL installation
+    try:
+        result = subprocess.run(['gdalinfo', '--version'], capture_output=True, text=True)
+        print(f"GDAL version: {result.stdout.strip()}")
+    except FileNotFoundError:
+        print("GDAL not found. Please install GDAL and add to PATH.")
+        exit(1)
+    
+    print("Creating FTW training chips from NDVI-filtered active fields...")
+    print("="*70)
     
     try:
+        valid_pairs = []
+        
+        # Check which files exist
         for pair in morocco_pairs:
-            print(f"\nProcessing: {pair['name']}")
+            sentinel_exists = os.path.exists(pair['sentinel'])
+            mask_exists = os.path.exists(pair['mask'])
+            
+            print(f"\n{pair['name']}:")
+            print(f"  Sentinel: {'✓' if sentinel_exists else '✗'} {pair['sentinel']}")
+            print(f"  Mask: {'✓' if mask_exists else '✗'} {pair['mask']}")
+            
+            if sentinel_exists and mask_exists:
+                valid_pairs.append(pair)
+            else:
+                print(f"  → Skipping {pair['name']} - missing files")
+        
+        if not valid_pairs:
+            print("\nNo valid file pairs found. Please check file paths.")
+            exit(1)
+        
+        print(f"\nProcessing {len(valid_pairs)} valid pairs...")
+        
+        total_patches = 0
+        
+        for i, pair in enumerate(valid_pairs):
+            print(f"\n{'-'*50}")
+            print(f"Processing: {pair['name']} ({i+1}/{len(valid_pairs)})")
+            print(f"{'-'*50}")
             
             output_subdir = Path(base_output_dir) / pair['name']
             
-            preprocess_for_ftw_training(
+            result_dir = preprocess_for_ftw_training(
                 sentinel_path=pair['sentinel'],
                 mask_path=pair['mask'], 
                 output_dir=str(output_subdir),
@@ -244,8 +313,32 @@ if __name__ == "__main__":
                 stride=256,
                 min_labeled_pixels=100
             )
+            
+            # Count patches created
+            window_a_dir = result_dir / "window_a"
+            patch_count = len(list(window_a_dir.glob("*.tif")))
+            total_patches += patch_count
+            
+            print(f"✓ Created {patch_count} training patches for {pair['name']}")
         
-        print(f"\nAll preprocessing complete. Training data ready at: {base_output_dir}")
+        print(f"\n{'='*70}")
+        print(f"ALL PREPROCESSING COMPLETE!")
+        print(f"{'='*70}")
+        print(f"Total patches created: {total_patches}")
+        print(f"Training data ready at: {base_output_dir}")
+        print(f"\nDataset structure:")
+        print(f"  {base_output_dir}/")
+        for pair in valid_pairs:
+            print(f"    ├── {pair['name']}/")
+            print(f"    │   ├── window_a/    # Sentinel-2 Window A patches")
+            print(f"    │   ├── window_b/    # Sentinel-2 Window B patches")
+            print(f"    │   ├── masks/       # 3-class ground truth masks")
+            print(f"    │   └── dataset_info.txt")
+        
+        print(f"\nNext steps:")
+        print(f"  1. Review dataset_info.txt files in each subfolder")
+        print(f"  2. Use this data for FTW model training")
+        print(f"  3. Only active fields (NDVI filtered) are included in ground truth")
         
     except Exception as e:
         print(f"Error: {e}")

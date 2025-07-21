@@ -1,7 +1,8 @@
-#This script is used for using trained model to make predictions on three sentinel2 iamges
+#This script is used for using trained model to make predictions on three sentinel2 images
 #!/usr/bin/env python3
 """
 Extract weights from checkpoint and run inference on Sentinel-2 images
+Updated to use the new filtered Morocco training model
 """
 
 import os
@@ -257,17 +258,25 @@ def test_checkpoint_content(checkpoint_path):
 
 def main():
     """Main inference function"""
-    print("Morocco Model Inference (Weight Extraction)")
-    print("-" * 50)
+    print("Morocco Model Inference - Filtered Data Training")
+    print("-" * 60)
     
-    # Configuration
-    model_path = r"logs\Morocco-FTW\lightning_logs\version_4\checkpoints\epoch=2-val_loss=0.67.ckpt"
+    # Model paths (commented old ones for reference)
+    # OLD MODELS (commented out for reference):
+    # Original trained model:
+    # model_path = r"logs\Morocco-FTW\lightning_logs\version_4\checkpoints\epoch=2-val_loss=0.67.ckpt"
+    # Fine-tuned model (old):
+    # model_path = r"logs\Morocco-FTW-Transfer\lightning_logs\version_4\checkpoints\epoch=100-val_loss=0.42.ckpt"
+    
+    # NEW FILTERED DATA MODEL (best checkpoint from your training):
+    model_path = r"logs\Morocco-FTW-Filtered\lightning_logs\version_2\checkpoints\epoch=104-val_loss=0.41.ckpt"
     
     # Test checkpoint first
     print("Testing checkpoint file...")
     if not test_checkpoint_content(model_path):
         return
     
+    # Same Sentinel-2 images as before
     images = [
         "morocco_mosaic.tif",
         "morocco_mid_mosaic.tif", 
@@ -281,9 +290,14 @@ def main():
             print(f"Image not found: {img_path}")
             continue
             
-        # Generate output name
+        # Generate output name with clear filtered model indication
         base_name = os.path.splitext(img_path)[0]
-        output_path = f"{base_name}_morocco_trained_extracted.tif"
+        # OLD OUTPUT PATHS (commented out for reference):
+        # output_path = f"{base_name}_morocco_trained_extracted.tif"
+        # output_path = f"{base_name}_morocco_finetuned.tif"
+        
+        # NEW OUTPUT PATH for filtered model:
+        output_path = f"{base_name}_morocco_filtered.tif"  # Clear naming for filtered model
         
         # Run inference
         start_time = time.time()
@@ -292,8 +306,8 @@ def main():
             model_path=model_path,
             output_path=output_path,
             batch_size=2,
-            patch_size=512,
-            padding=64
+            patch_size=256,
+            padding=32
         )
         
         if success:
@@ -304,12 +318,12 @@ def main():
             print(f"Failed to process {img_path}")
     
     print(f"Inference completed - {success_count} images processed")
-    print("\nOutput files:")
-    for f in ["morocco_mosaic_morocco_trained_extracted.tif", 
-              "morocco_mid_mosaic_morocco_trained_extracted.tif",
-              "morocco_tr_aoi_morocco_trained_extracted.tif"]:
+    print("\nOutput files with filtered model:")
+    for f in ["morocco_mosaic_morocco_filtered.tif", 
+              "morocco_mid_mosaic_morocco_filtered.tif",
+              "morocco_tr_aoi_morocco_filtered.tif"]:
         if os.path.exists(f):
-            print(f"  {f}")
+            print(f"  ✓ {f}")
 
 if __name__ == "__main__":
     main()

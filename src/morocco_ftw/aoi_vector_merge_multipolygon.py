@@ -302,13 +302,31 @@ def main():
         # final_output = os.path.join(base_path, "morocco_merged_boundaries_ALL_AOI.gpkg")
         
         #   trained files
+        # input_vectors = [
+        #     os.path.join(base_path, "morocco_mid_mosaic_morocco_trained.gpkg"),
+        #     os.path.join(base_path, "morocco_mosaic_morocco_trained.gpkg"),
+        #     os.path.join(base_path, "morocco_tr_aoi_morocco_trained.gpkg")
+        # ]
+        # temp_dir = os.path.join(base_path, "temp_clipped_morocco_trained")
+        # final_output = os.path.join(base_path, "morocco_merged_morocco_trained_ALL_AOI.gpkg")
+
+        #   finetuned files
+        # input_vectors = [
+        #     os.path.join(base_path, "morocco_mid_mosaic_finetuned.gpkg"),
+        #     os.path.join(base_path, "morocco_mosaic_finetuned.gpkg"),
+        #     os.path.join(base_path, "morocco_tr_aoi_finetuned.gpkg")
+        # ]
+        # temp_dir = os.path.join(base_path, "temp_clipped_morocco_finetuned")
+        # final_output = os.path.join(base_path, "morocco_merged_morocco_finetuned_ALL_AOI.gpkg")
+
+        #  Filtered finetuned files
         input_vectors = [
-            os.path.join(base_path, "morocco_mid_mosaic_morocco_trained.gpkg"),
-            os.path.join(base_path, "morocco_mosaic_morocco_trained.gpkg"),
-            os.path.join(base_path, "morocco_tr_aoi_morocco_trained.gpkg")
+            os.path.join(base_path, "morocco_mid_mosaic_filtered.gpkg"),
+            os.path.join(base_path, "morocco_mosaic_filtered.gpkg"),
+            os.path.join(base_path, "morocco_tr_aoi_filtered.gpkg")
         ]
-        temp_dir = os.path.join(base_path, "temp_clipped_morocco_trained")
-        final_output = os.path.join(base_path, "morocco_merged_morocco_trained_ALL_AOI.gpkg")
+        temp_dir = os.path.join(base_path, "temp_clipped_morocco_filtered")
+        final_output = os.path.join(base_path, "morocco_merged_morocco_filtered_ALL_AOI.gpkg")
 
         # Log paths
         logger.info(f"AOI shapefile: {aoi_shapefile}")

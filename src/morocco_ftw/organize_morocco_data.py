@@ -25,8 +25,8 @@ def organize_morocco_data_for_ftw(preprocessed_dir, ftw_data_dir):
     preprocessed_dir = Path(preprocessed_dir)
     ftw_data_dir = Path(ftw_data_dir)
     
-    # Create FTW structure
-    morocco_dir = ftw_data_dir / "morocco"
+    # Create FTW structure with filtered data directory
+    morocco_dir = ftw_data_dir / "morocco_filtered"
     s2_dir = morocco_dir / "s2_images"
     window_a_dir = s2_dir / "window_a"
     window_b_dir = s2_dir / "window_b"
@@ -104,7 +104,7 @@ def organize_morocco_data_for_ftw(preprocessed_dir, ftw_data_dir):
     chips_df['geometry'] = [Point(0, 0) for _ in range(len(chips_df))]
     
     chips_gdf = gpd.GeoDataFrame(chips_df, crs='EPSG:4326')
-    chips_parquet = morocco_dir / "chips_morocco.parquet"
+    chips_parquet = morocco_dir / "chips_morocco_filtered.parquet"
     chips_gdf.to_parquet(chips_parquet)
     
     print(f"Created: {chips_parquet}")
@@ -131,7 +131,11 @@ def assign_split(patch_idx, total_patches):
 
 if __name__ == "__main__":
     # Configuration
-    preprocessed_dir = r"C:\Users\qin.xu\github\ftw-baselines\morocco_ftw_training"
+    # Old preprocessed directory 
+    # preprocessed_dir = r"C:\Users\qin.xu\github\ftw-baselines\morocco_ftw_training"
+    
+    # New filtered preprocessed directory
+    preprocessed_dir = r"C:\Users\qin.xu\github\ftw-baselines\morocco_ftw_training_filtered"
     ftw_data_dir = r"C:\Users\qin.xu\github\ftw-baselines\data\ftw"
     
     try:

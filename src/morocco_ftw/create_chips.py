@@ -1,4 +1,4 @@
-#This scripts is used to generate chips_morocco.parquet based on the GT and sentinel2 chips
+#This scripts is used to generate chips_morocco_filtered.parquet based on the GT and sentinel2 chips
 import geopandas as gpd
 import pandas as pd
 import rasterio
@@ -7,12 +7,13 @@ from shapely.geometry import box
 import os
 
 def create_chips_metadata(ftw_data_dir):
-    """Create chips_morocco.parquet with real geometries from actual patch files"""
+    """Create chips_morocco_filtered.parquet with real geometries from actual patch files"""
     
-    print("Creating chips metadata from patch files...")
+    print("Creating chips metadata from filtered patch files...")
     
     ftw_data_dir = Path(ftw_data_dir)
-    morocco_dir = ftw_data_dir / "morocco"
+    # Updated to use filtered directory instead of original
+    morocco_dir = ftw_data_dir / "morocco_filtered"
     
     # Paths to patch directories
     window_a_dir = morocco_dir / "s2_images" / "window_a"
@@ -97,8 +98,8 @@ def create_chips_metadata(ftw_data_dir):
     bounds = gdf.total_bounds
     print(f"Spatial extent: {bounds}")
     
-    # Save as parquet
-    chips_file = morocco_dir / "chips_morocco.parquet"
+    # Save as parquet with filtered naming
+    chips_file = morocco_dir / "chips_morocco_filtered.parquet"
     gdf.to_parquet(chips_file)
     
     print(f"Created chips metadata: {chips_file}")
@@ -113,7 +114,7 @@ def create_chips_metadata(ftw_data_dir):
     return chips_file
 
 def test_ftw_loading(ftw_data_dir):
-    """Test if FTW can load the data properly"""
+    """Test if FTW can load the filtered data properly"""
     
     print("Testing FTW data loading...")
     
@@ -123,14 +124,14 @@ def test_ftw_loading(ftw_data_dir):
         
         from ftw.datasets import FTW
         
-        # Test datasets
+        # Test datasets with filtered data
         splits = ["train", "val", "test"]
         dataset_sizes = {}
         
         for split in splits:
             dataset = FTW(
                 root=str(ftw_data_dir),
-                countries=["morocco"],
+                countries=["morocco_filtered"],  # Updated to use filtered directory
                 split=split,
                 load_boundaries=True,
                 temporal_options="stacked"
@@ -142,7 +143,7 @@ def test_ftw_loading(ftw_data_dir):
         if dataset_sizes["train"] > 0:
             train_dataset = FTW(
                 root=str(ftw_data_dir),
-                countries=["morocco"],
+                countries=["morocco_filtered"],  # Updated to use filtered directory
                 split="train",
                 load_boundaries=True,
                 temporal_options="stacked"
@@ -166,18 +167,22 @@ def test_ftw_loading(ftw_data_dir):
 
 if __name__ == "__main__":
     
+    # Old file path (commented out)
+    # ftw_data_dir = r"C:\Users\qin.xu\github\ftw-baselines\data\ftw"
+    
+    # Use same data directory but target the filtered subdirectory
     ftw_data_dir = r"C:\Users\qin.xu\github\ftw-baselines\data\ftw"
     
     try:
-        # Create chips metadata
+        # Create chips metadata for filtered data
         chips_file = create_chips_metadata(ftw_data_dir)
         
         if chips_file:
-            # Test FTW loading
+            # Test FTW loading with filtered data
             success = test_ftw_loading(ftw_data_dir)
             
             if success:
-                print("Success: FTW can load Morocco data")
+                print("Success: FTW can load filtered Morocco data")
                 print("Ready for training: python src\\morocco_ftw\\train_morocco.py")
             else:
                 print("FTW loading still has issues")

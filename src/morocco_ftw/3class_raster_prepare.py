@@ -18,31 +18,30 @@ def run_gdal_command(cmd, description=""):
         print(f"Error: {e.stderr}")
         return False
 
-def create_3class_field_raster_gdal(vector_paths, output_path, pixel_size=10, boundary_buffer=10, target_crs='EPSG:32629'):
-    """Create a 3-class raster using GDAL command line tools"""
+def create_3class_field_raster_gdal(vector_path, output_path, pixel_size=10, boundary_buffer=10, target_crs='EPSG:32629'):
+    """Create a 3-class raster using GDAL command line tools for filtered polygons"""
     
-    # Load and merge vector files
-    gdfs = []
-    for path in vector_paths:
-        gdf = gpd.read_file(path)
-        gdf_utm = gdf.to_crs(target_crs)
-        gdfs.append(gdf_utm)
+    # Load filtered vector file (no need to merge since it's already filtered)
+    print(f"Loading filtered polygons from: {vector_path}")
+    gdf = gpd.read_file(vector_path)
     
-    merged_gdf = pd.concat(gdfs, ignore_index=True)
+    # Convert to target CRS
+    gdf_utm = gdf.to_crs(target_crs)
+    print(f"Loaded {len(gdf_utm)} filtered polygons")
     
     # Fix invalid geometries
-    merged_gdf.geometry = merged_gdf.geometry.buffer(0)
+    gdf_utm.geometry = gdf_utm.geometry.buffer(0)
     
     # Create temporary directory
     temp_dir = tempfile.mkdtemp()
     
-    # Save merged shapefile
-    merged_shp = os.path.join(temp_dir, "merged_fields.shp")
-    merged_gdf.to_file(merged_shp)
+    # Save filtered shapefile in UTM
+    filtered_shp = os.path.join(temp_dir, "filtered_fields.shp")
+    gdf_utm.to_file(filtered_shp)
     
     # Create boundary shapefile
-    boundaries_gdf = merged_gdf.copy()
-    boundary_lines = merged_gdf.geometry.boundary
+    boundaries_gdf = gdf_utm.copy()
+    boundary_lines = gdf_utm.geometry.boundary
     boundary_polygons = boundary_lines.buffer(boundary_buffer)
     boundaries_gdf.geometry = boundary_polygons
     
@@ -50,17 +49,17 @@ def create_3class_field_raster_gdal(vector_paths, output_path, pixel_size=10, bo
     boundaries_gdf.to_file(boundaries_shp)
     
     # Get extent and calculate dimensions
-    bounds = merged_gdf.total_bounds
+    bounds = gdf_utm.total_bounds
     extent = f"{bounds[0]} {bounds[1]} {bounds[2]} {bounds[3]}"
     
     # Create temporary raster files
     fields_raster = os.path.join(temp_dir, "fields.tif")
     
     # Rasterize fields (value = 1)
-    cmd_fields = f'''gdal_rasterize -a_srs {target_crs} -te {extent} -tr {pixel_size} {pixel_size} -burn 1 -ot Byte -of GTiff "{merged_shp}" "{fields_raster}"'''
+    cmd_fields = f'''gdal_rasterize -a_srs {target_crs} -te {extent} -tr {pixel_size} {pixel_size} -burn 1 -ot Byte -of GTiff "{filtered_shp}" "{fields_raster}"'''
     
-    if not run_gdal_command(cmd_fields, "Rasterizing fields"):
-        raise Exception("Failed to rasterize fields")
+    if not run_gdal_command(cmd_fields, "Rasterizing filtered fields"):
+        raise Exception("Failed to rasterize filtered fields")
     
     # Copy fields raster as base
     shutil.copy2(fields_raster, output_path)
@@ -155,20 +154,41 @@ def clip_raster_to_reference_gdal(input_raster, reference_raster, output_path):
         raise Exception(f"Output file was not created: {output_path}")
 
 if __name__ == "__main__":
-    # Configuration
-    vector_tile_pairs = [
+    # Configuration - Updated to use filtered polygons
+    
+    # OLD CONFIGURATION (commented out):
+    # vector_tile_pairs = [
+    #     {
+    #         'vector': r"S:\E043 Crop classification and field delineation\04_FieldDelineation\TrainingData_Assignment\04_FromCeinsys\Results_AOI\Field_Delineation_Morocco_Ceinsys\AOIs_Morocco1.shp",
+    #         'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_bl_gtaoi.tif",
+    #         'name': 'Morocco1_BL'
+    #     },
+    #     {
+    #         'vector': r"S:\E043 Crop classification and field delineation\04_FieldDelineation\TrainingData_Assignment\04_FromCeinsys\Results_AOI\Field_Delineation_Morocco_Ceinsys\AOIs_Morocco2.shp",
+    #         'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_tr_gtaoi.tif",
+    #         'name': 'Morocco2_TR'
+    #     },
+    #     {
+    #         'vector': r"S:\E043 Crop classification and field delineation\04_FieldDelineation\TrainingData_Assignment\05_FromStef\Parcel GT Stef New.shp",
+    #         'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_br_gtaoi.tif",
+    #         'name': 'Stef_BR'
+    #     }
+    # ]
+    
+    # NEW CONFIGURATION - Using filtered polygons
+    filtered_polygons_path = r"C:\Users\qin.xu\github\ftw-baselines\Output\morocco_active_fields.shp"
+    
+    # Reference Sentinel-2 tiles for alignment (keep all three for different AOI regions)
+    reference_tiles = [
         {
-            'vector': r"S:\E043 Crop classification and field delineation\04_FieldDelineation\TrainingData_Assignment\04_FromCeinsys\Results_AOI\Field_Delineation_Morocco_Ceinsys\AOIs_Morocco1.shp",
             'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_bl_gtaoi.tif",
             'name': 'Morocco1_BL'
         },
         {
-            'vector': r"S:\E043 Crop classification and field delineation\04_FieldDelineation\TrainingData_Assignment\04_FromCeinsys\Results_AOI\Field_Delineation_Morocco_Ceinsys\AOIs_Morocco2.shp",
             'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_tr_gtaoi.tif",
             'name': 'Morocco2_TR'
         },
         {
-            'vector': r"S:\E043 Crop classification and field delineation\04_FieldDelineation\TrainingData_Assignment\05_FromStef\Parcel GT Stef New.shp",
             'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_br_gtaoi.tif",
             'name': 'Stef_BR'
         }
@@ -184,47 +204,72 @@ if __name__ == "__main__":
         print("GDAL not found. Please install GDAL and add to PATH.")
         exit(1)
     
+    # Check if filtered polygons file exists
+    if not os.path.exists(filtered_polygons_path):
+        print(f"Error: Filtered polygons file not found: {filtered_polygons_path}")
+        print("Please run the NDVI filtering script first to generate the filtered polygons.")
+        exit(1)
+    
     try:
-        print("Processing vector files with corresponding Sentinel-2 tiles...")
+        print("Processing filtered polygons to create 3-class rasters...")
+        print(f"Using filtered polygons: {filtered_polygons_path}")
+        
         aligned_rasters = []
         
-        for i, pair in enumerate(vector_tile_pairs):
-            print(f"\nProcessing {pair['name']} ({i+1}/{len(vector_tile_pairs)})")
+        # Create base 3-class raster from filtered polygons
+        base_output_utm = f"{output_dir}\\morocco_filtered_3class_utm.tif"
+        print(f"\nCreating base 3-class raster...")
+        
+        result_path = create_3class_field_raster_gdal(
+            vector_path=filtered_polygons_path,
+            output_path=base_output_utm,
+            pixel_size=10,
+            boundary_buffer=10,
+            target_crs='EPSG:32629'
+        )
+        
+        print(f"Base raster created: {result_path}")
+        
+        # Align with each Sentinel-2 tile for different AOI regions
+        for i, tile in enumerate(reference_tiles):
+            print(f"\nAligning with {tile['name']} ({i+1}/{len(reference_tiles)})")
             
-            # Define output paths
-            output_raster_utm = f"{output_dir}\\{pair['name']}_3class_utm.tif"
-            output_aligned = f"{output_dir}\\{pair['name']}_aligned.tif"
+            # Check if reference tile exists
+            if not os.path.exists(tile['sentinel']):
+                print(f"Warning: Reference tile not found: {tile['sentinel']}")
+                continue
             
-            # Create 3-class raster
-            result_path = create_3class_field_raster_gdal(
-                vector_paths=[pair['vector']],
-                output_path=output_raster_utm,
-                pixel_size=10,
-                boundary_buffer=10,
-                target_crs='EPSG:32629'
-            )
+            # Define output path
+            output_aligned = f"{output_dir}\\morocco_filtered_3class_{tile['name']}_aligned.tif"
             
             # Align with Sentinel-2 tile
             clip_raster_to_reference_gdal(
                 input_raster=result_path,
-                reference_raster=pair['sentinel'],
+                reference_raster=tile['sentinel'],
                 output_path=output_aligned
             )
             
             aligned_rasters.append({
-                'name': pair['name'],
-                'utm_raster': result_path,
+                'name': tile['name'],
                 'aligned_raster': output_aligned,
-                'sentinel_tile': pair['sentinel']
+                'sentinel_tile': tile['sentinel']
             })
             
-            print(f"Completed {pair['name']}")
+            print(f"Completed alignment for {tile['name']}")
         
-        print(f"\nProcessing complete. Created {len(aligned_rasters)} aligned raster pairs:")
+        print(f"\nProcessing complete!")
+        print(f"Base UTM raster: {result_path}")
+        print(f"Created {len(aligned_rasters)} aligned raster(s):")
+        
         for i, raster in enumerate(aligned_rasters):
             print(f"{i+1}. {raster['name']}")
-            print(f"   UTM raster: {raster['utm_raster']}")
             print(f"   Aligned raster: {raster['aligned_raster']}")
+            print(f"   Reference tile: {raster['sentinel_tile']}")
+        
+        print(f"\nRaster classes:")
+        print(f"  0 = Background (white)")
+        print(f"  1 = Field interior (green)")
+        print(f"  2 = Field boundaries (red)")
         
     except Exception as e:
         print(f"Error: {e}")

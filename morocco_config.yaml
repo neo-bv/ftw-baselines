@@ -1,9 +1,9 @@
 trainer:
-  max_epochs: 50
-  log_every_n_steps: 10
-  accelerator: cpu  # Changed from 'gpu' to 'cpu'
+  max_epochs: 150                   
+  log_every_n_steps: 5
+  accelerator: cpu                  
   devices: 1
-  default_root_dir: logs/Morocco-FTW
+  default_root_dir: logs/Morocco-FTW-Filtered  # Updated to indicate filtered data
   callbacks:
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
@@ -15,38 +15,42 @@ trainer:
     - class_path: lightning.pytorch.callbacks.EarlyStopping
       init_args:
         monitor: val_loss
-        patience: 15
+        patience: 5                
         mode: min
 
 model:
   class_path: ftw.trainers.CustomSemanticSegmentationTask
   init_args:
-    class_weights: [0.0, 1.165, 1.835]
+    class_weights: [0.0, 1.165, 1.835]  
     loss: "ce" 
     model: "unet"
     backbone: "efficientnet-b3"
-    weights: true
+    weights: true                   
     patch_weights: false
-    in_channels: 8 #Stacked window a&b
-    num_classes: 3 #background, field, boundries
+    in_channels: 8                  
+    num_classes: 3                  
     num_filters: 64
-    ignore_index: 0 #ignore background pixels
-    lr: 1e-3
+    ignore_index: 0
+    lr: 0.0001                  #1e-4                       
     patience: 100
+    # Add regularization
+    #dropout_rate: 0.3  # Add dropout 
+    #weight_decay: 0.01  # L2 regularization
 
 data:
   class_path: ftw.datamodules.FTWDataModule
   init_args:
-    batch_size: 4  # Reduced batch size for CPU training
-    num_workers: 0  # Reduced for CPU
+    batch_size: 2                  
+    num_workers: 0                
     train_countries:
       - morocco
     val_countries:
-      - morocco
+      - morocco  
     test_countries:
       - morocco
-    temporal_options: "stacked"
+    temporal_options: "stacked"     
     load_boundaries: true
+              
   dict_kwargs:
     root: "C:/Users/qin.xu/github/ftw-baselines/data/ftw"
 

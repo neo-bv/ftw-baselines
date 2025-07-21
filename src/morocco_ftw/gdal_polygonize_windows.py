@@ -1,3 +1,4 @@
+#This script is used for vectorize the raster predictions
 #!/usr/bin/env python3
 """
 GDAL polygonization script for raster data.
