@@ -28,8 +28,7 @@ vector_tile_pairs = [
 ]
 
 output_dir = "Output/"
-NDVI_THRESHOLD = 0.15  # Avoid bare soil
-NDVI_DIFFERENCE_THRESHOLD = 0.1  # Minimum difference between windows
+THRESHOLDS_TO_TEST = [0.01, 0.02, 0.05, 0.1]  # Different NDVI difference thresholds to test
 
 def calculate_ndvi(red, nir):
     """Calculate NDVI from red and NIR bands"""
@@ -59,8 +58,8 @@ def save_ndvi_image(ndvi_array, profile, output_path):
         dst.write(ndvi_array, 1)
     print(f"  Saved NDVI image: {output_path}")
 
-def process_aoi(vector_path, sentinel_path, aoi_name):
-    """Process one AOI pair"""
+def process_aoi(vector_path, sentinel_path, aoi_name, save_images=True):
+    """Process one AOI pair and return raw polygon data"""
     print(f"Processing {aoi_name}...")
     
     # Check files exist
@@ -86,21 +85,22 @@ def process_aoi(vector_path, sentinel_path, aoi_name):
         ndvi_a = calculate_ndvi(red_a, nir_a)
         ndvi_b = calculate_ndvi(red_b, nir_b)
         
-        # Save NDVI images for this AOI
-        ndvi_dir = os.path.join(output_dir, "NDVI_Images")
-        os.makedirs(ndvi_dir, exist_ok=True)
-        
-        ndvi_a_path = os.path.join(ndvi_dir, f"{aoi_name}_NDVI_WindowA.tif")
-        ndvi_b_path = os.path.join(ndvi_dir, f"{aoi_name}_NDVI_WindowB.tif")
-        ndvi_diff_path = os.path.join(ndvi_dir, f"{aoi_name}_NDVI_Difference.tif")
-        
-        # Calculate NDVI difference
-        ndvi_difference = np.abs(ndvi_a - ndvi_b)
-        
-        # Save NDVI images
-        save_ndvi_image(ndvi_a, src.profile, ndvi_a_path)
-        save_ndvi_image(ndvi_b, src.profile, ndvi_b_path)
-        save_ndvi_image(ndvi_difference, src.profile, ndvi_diff_path)
+        # Save NDVI images for this AOI (only once, not for each threshold)
+        if save_images:
+            ndvi_dir = os.path.join(output_dir, "NDVI_Images")
+            os.makedirs(ndvi_dir, exist_ok=True)
+            
+            ndvi_a_path = os.path.join(ndvi_dir, f"{aoi_name}_NDVI_WindowA.tif")
+            ndvi_b_path = os.path.join(ndvi_dir, f"{aoi_name}_NDVI_WindowB.tif")
+            ndvi_diff_path = os.path.join(ndvi_dir, f"{aoi_name}_NDVI_Difference.tif")
+            
+            # Calculate NDVI difference
+            ndvi_difference = np.abs(ndvi_a - ndvi_b)
+            
+            # Save NDVI images
+            save_ndvi_image(ndvi_a, src.profile, ndvi_a_path)
+            save_ndvi_image(ndvi_b, src.profile, ndvi_b_path)
+            save_ndvi_image(ndvi_difference, src.profile, ndvi_diff_path)
         
         # Reproject polygons if needed for processing
         gdf_for_processing = gdf.copy()
@@ -144,16 +144,8 @@ def process_aoi(vector_path, sentinel_path, aoi_name):
                     ndvi_b_min = np.min(valid_b) if len(valid_b) > 0 else np.nan
                     ndvi_b_max = np.max(valid_b) if len(valid_b) > 0 else np.nan
                 
-                # Apply new filter conditions:
-                # 1. NDVI > 0.15 in both windows (avoid bare soil)
-                # 2. Difference in NDVI > 0.1 (temporal change)
+                # Calculate NDVI difference (will be used for threshold testing)
                 ndvi_diff = abs(ndvi_a_mean - ndvi_b_mean) if (not np.isnan(ndvi_a_mean) and not np.isnan(ndvi_b_mean)) else 0
-                
-                passed_filter = (ndvi_a_mean > NDVI_THRESHOLD and 
-                               ndvi_b_mean > NDVI_THRESHOLD and
-                               ndvi_diff > NDVI_DIFFERENCE_THRESHOLD and
-                               not np.isnan(ndvi_a_mean) and 
-                               not np.isnan(ndvi_b_mean))
                 
                 # Use ORIGINAL geometry (not reprojected)
                 original_geom = gdf.iloc[idx].geometry
@@ -170,8 +162,6 @@ def process_aoi(vector_path, sentinel_path, aoi_name):
                     'ndvi_b_min': ndvi_b_min,
                     'ndvi_b_max': ndvi_b_max,
                     'ndvi_diff': ndvi_diff,
-                    'passed_filter': passed_filter,
-                    'recommendation': 'KEEP' if passed_filter else 'EXCLUDE',
                     'geometry': original_geom
                 })
                 
@@ -191,8 +181,6 @@ def process_aoi(vector_path, sentinel_path, aoi_name):
                     'ndvi_b_min': np.nan,
                     'ndvi_b_max': np.nan,
                     'ndvi_diff': 0,
-                    'passed_filter': False,
-                    'recommendation': 'EXCLUDE',
                     'geometry': original_geom
                 })
         
@@ -203,46 +191,56 @@ def process_aoi(vector_path, sentinel_path, aoi_name):
     
     return pd.DataFrame(results), original_crs
 
-def main():
-    print("Morocco NDVI Field Filter with Image Output")
-    print("Conditions: NDVI > 0.15 in both windows AND difference > 0.1")
-    print("=" * 60)
+def apply_threshold_filter(combined_df, threshold):
+    """Apply threshold filter to the combined dataframe"""
+    # Create a copy to avoid modifying original
+    df_filtered = combined_df.copy()
     
-    all_results = []
-    output_crs = None
+    # Apply filter condition
+    passed_filter = (df_filtered['ndvi_diff'] > threshold) & \
+                   (~df_filtered['ndvi_a_mean'].isna()) & \
+                   (~df_filtered['ndvi_b_mean'].isna())
     
-    # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
+    df_filtered['passed_filter'] = passed_filter
+    df_filtered['recommendation'] = df_filtered['passed_filter'].map({True: 'KEEP', False: 'EXCLUDE'})
+    df_filtered['threshold_used'] = threshold
     
-    # Process each AOI
-    for pair in vector_tile_pairs:
-        result_df, crs = process_aoi(pair['vector'], pair['sentinel'], pair['name'])
-        if result_df is not None:
-            all_results.append(result_df)
-            if output_crs is None:
-                output_crs = crs  # Use CRS from first valid AOI
+    return df_filtered
+
+def save_threshold_results(df_filtered, threshold, output_crs):
+    """Save results for a specific threshold"""
+    threshold_str = f"{threshold:.2f}".replace('.', 'p')
+    threshold_dir = os.path.join(output_dir, f"Threshold_{threshold_str}")
+    os.makedirs(threshold_dir, exist_ok=True)
     
-    if not all_results:
-        print("No data processed successfully.")
-        return
+    # All results for this threshold
+    gdf_all = gpd.GeoDataFrame(df_filtered, geometry='geometry', crs=output_crs)
+    gdf_all.to_file(os.path.join(threshold_dir, f'morocco_ndvi_filtered_th{threshold_str}.shp'))
+    gdf_all.drop('geometry', axis=1).to_csv(os.path.join(threshold_dir, f'morocco_ndvi_results_th{threshold_str}.csv'), index=False)
     
-    # Combine results
-    combined_df = pd.concat(all_results, ignore_index=True)
+    # Keep only active fields for this threshold
+    gdf_keep = gdf_all[gdf_all['recommendation'] == 'KEEP'].copy()
+    if len(gdf_keep) > 0:
+        gdf_keep.to_file(os.path.join(threshold_dir, f'morocco_active_fields_th{threshold_str}.shp'))
+        gdf_keep.drop('geometry', axis=1).to_csv(os.path.join(threshold_dir, f'morocco_active_fields_th{threshold_str}.csv'), index=False)
     
-    # Summary
-    total = len(combined_df)
-    kept = combined_df['passed_filter'].sum()
+    return threshold_dir
+
+def print_threshold_summary(df_filtered, threshold):
+    """Print summary for a specific threshold"""
+    total = len(df_filtered)
+    kept = df_filtered['passed_filter'].sum()
     excluded = total - kept
     
-    print(f"\nResults Summary:")
+    print(f"\n--- Threshold {threshold:.2f} Results ---")
     print(f"  Total polygons: {total}")
-    print(f"  KEEP (NDVI_A > 0.15 AND NDVI_B > 0.15 AND |NDVI_A - NDVI_B| > 0.1): {kept}")
+    print(f"  KEEP (|NDVI_A - NDVI_B| > {threshold:.2f}): {kept}")
     print(f"  EXCLUDE: {excluded}")
     print(f"  Success rate: {kept/total*100:.1f}%")
     
     # Show average NDVI difference for kept vs excluded
-    kept_data = combined_df[combined_df['passed_filter']]
-    excluded_data = combined_df[~combined_df['passed_filter']]
+    kept_data = df_filtered[df_filtered['passed_filter']]
+    excluded_data = df_filtered[~df_filtered['passed_filter']]
     
     if len(kept_data) > 0:
         avg_diff_kept = kept_data['ndvi_diff'].mean()
@@ -256,37 +254,100 @@ def main():
         avg_diff_excluded = excluded_data['ndvi_diff'].mean()
         print(f"  Average NDVI difference (EXCLUDE): {avg_diff_excluded:.3f}")
     
-    # Results by AOI
-    print(f"\nBy AOI:")
-    for aoi in combined_df['aoi_name'].unique():
-        aoi_data = combined_df[combined_df['aoi_name'] == aoi]
+    # Results by AOI for this threshold
+    print(f"  By AOI:")
+    for aoi in df_filtered['aoi_name'].unique():
+        aoi_data = df_filtered[df_filtered['aoi_name'] == aoi]
         aoi_kept = aoi_data['passed_filter'].sum()
-        print(f"  {aoi}: {aoi_kept}/{len(aoi_data)} kept ({aoi_kept/len(aoi_data)*100:.1f}%)")
+        print(f"    {aoi}: {aoi_kept}/{len(aoi_data)} kept ({aoi_kept/len(aoi_data)*100:.1f}%)")
+
+def main():
+    print("Morocco NDVI Field Filter - Multiple Threshold Testing")
+    print(f"Testing thresholds: {THRESHOLDS_TO_TEST}")
+    print("=" * 60)
     
-    # Save results
-    # All results
-    gdf_all = gpd.GeoDataFrame(combined_df, geometry='geometry', crs=output_crs)
-    gdf_all.to_file(os.path.join(output_dir, 'morocco_ndvi_filtered.shp'))
-    gdf_all.drop('geometry', axis=1).to_csv(os.path.join(output_dir, 'morocco_ndvi_results.csv'), index=False)
+    all_results = []
+    output_crs = None
     
-    # Keep only active fields
-    gdf_keep = gdf_all[gdf_all['recommendation'] == 'KEEP'].copy()
-    gdf_keep.to_file(os.path.join(output_dir, 'morocco_active_fields.shp'))
-    gdf_keep.drop('geometry', axis=1).to_csv(os.path.join(output_dir, 'morocco_active_fields.csv'), index=False)
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Process each AOI (only once - extract raw NDVI data)
+    for pair in vector_tile_pairs:
+        result_df, crs = process_aoi(pair['vector'], pair['sentinel'], pair['name'], save_images=True)
+        if result_df is not None:
+            all_results.append(result_df)
+            if output_crs is None:
+                output_crs = crs  # Use CRS from first valid AOI
+    
+    if not all_results:
+        print("No data processed successfully.")
+        return
+    
+    # Combine raw results (without any threshold filtering yet)
+    combined_df = pd.concat(all_results, ignore_index=True)
+    
+    # Create summary comparison table
+    summary_data = []
+    
+    # Test each threshold
+    for threshold in THRESHOLDS_TO_TEST:
+        print(f"\n{'='*60}")
+        print(f"TESTING THRESHOLD: {threshold:.2f}")
+        print(f"{'='*60}")
+        
+        # Apply threshold filter
+        df_filtered = apply_threshold_filter(combined_df, threshold)
+        
+        # Print summary for this threshold
+        print_threshold_summary(df_filtered, threshold)
+        
+        # Save results for this threshold
+        threshold_dir = save_threshold_results(df_filtered, threshold, output_crs)
+        
+        # Add to summary comparison
+        total = len(df_filtered)
+        kept = df_filtered['passed_filter'].sum()
+        summary_data.append({
+            'threshold': threshold,
+            'total_polygons': total,
+            'kept': kept,
+            'excluded': total - kept,
+            'success_rate_percent': kept/total*100 if total > 0 else 0,
+            'avg_ndvi_diff_kept': df_filtered[df_filtered['passed_filter']]['ndvi_diff'].mean() if kept > 0 else np.nan,
+            'avg_ndvi_diff_excluded': df_filtered[~df_filtered['passed_filter']]['ndvi_diff'].mean() if (total - kept) > 0 else np.nan
+        })
+        
+        print(f"  Results saved to: {threshold_dir}")
+    
+    # Create and save summary comparison table
+    summary_df = pd.DataFrame(summary_data)
+    summary_path = os.path.join(output_dir, 'threshold_comparison_summary.csv')
+    summary_df.to_csv(summary_path, index=False)
+    
+    # Print final comparison table
+    print(f"\n{'='*80}")
+    print("THRESHOLD COMPARISON SUMMARY")
+    print(f"{'='*80}")
+    print(f"{'Threshold':<12} {'Total':<8} {'Kept':<8} {'Excluded':<10} {'Success %':<12} {'Avg Diff (Keep)':<16}")
+    print("-" * 80)
+    for _, row in summary_df.iterrows():
+        print(f"{row['threshold']:<12.2f} {row['total_polygons']:<8} {row['kept']:<8} {row['excluded']:<10} "
+              f"{row['success_rate_percent']:<12.1f} {row['avg_ndvi_diff_kept']:<16.3f}")
     
     print(f"\nFiles saved to {output_dir}:")
-    print("  Shapefiles and CSVs:")
-    print("    - morocco_ndvi_filtered.shp (all polygons with filter results)")
-    print("    - morocco_active_fields.shp (only KEEP polygons)")
-    print("    - morocco_ndvi_results.csv (all results)")
-    print("    - morocco_active_fields.csv (active fields only)")
     print("  NDVI Images:")
     print("    - NDVI_Images/{AOI_name}_NDVI_WindowA.tif")
-    print("    - NDVI_Images/{AOI_name}_NDVI_WindowB.tif")
+    print("    - NDVI_Images/{AOI_name}_NDVI_WindowB.tif") 
     print("    - NDVI_Images/{AOI_name}_NDVI_Difference.tif")
+    print("  Threshold Results:")
+    for threshold in THRESHOLDS_TO_TEST:
+        threshold_str = f"{threshold:.2f}".replace('.', 'p')
+        print(f"    - Threshold_{threshold_str}/morocco_*_th{threshold_str}.*")
+    print("  Summary:")
+    print(f"    - threshold_comparison_summary.csv")
     
-    print(f"\nDone! Use the KEEP polygons for FTW training.")
-    print("Check the NDVI_Images folder for visual analysis of NDVI values.")
+    print(f"\nDone! Compare the results from different thresholds to choose the best one for FTW training.")
 
 if __name__ == "__main__":
     main()

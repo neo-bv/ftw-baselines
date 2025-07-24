@@ -176,7 +176,7 @@ if __name__ == "__main__":
     # ]
     
     # NEW CONFIGURATION - Using filtered polygons
-    filtered_polygons_path = r"C:\Users\qin.xu\github\ftw-baselines\Output\morocco_active_fields.shp"
+    filtered_polygons_path = r"C:\Users\qin.xu\github\ftw-baselines\Output\Threshold_0p02\morocco_active_fields_th0p02.shp"
     
     # Reference Sentinel-2 tiles for alignment (keep all three for different AOI regions)
     reference_tiles = [

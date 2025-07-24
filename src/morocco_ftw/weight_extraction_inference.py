@@ -297,7 +297,7 @@ def main():
         # output_path = f"{base_name}_morocco_finetuned.tif"
         
         # NEW OUTPUT PATH for filtered model:
-        output_path = f"{base_name}_morocco_filtered.tif"  # Clear naming for filtered model
+        output_path = f"{base_name}_morocco_filtered0.02.tif"  # Clear naming for filtered model
         
         # Run inference
         start_time = time.time()
@@ -319,9 +319,9 @@ def main():
     
     print(f"Inference completed - {success_count} images processed")
     print("\nOutput files with filtered model:")
-    for f in ["morocco_mosaic_morocco_filtered.tif", 
-              "morocco_mid_mosaic_morocco_filtered.tif",
-              "morocco_tr_aoi_morocco_filtered.tif"]:
+    for f in ["morocco_mosaic_morocco_filtered0.02.tif", 
+              "morocco_mid_mosaic_morocco_filtered0.02.tif",
+              "morocco_tr_aoi_morocco_filtered0.02.tif"]:
         if os.path.exists(f):
             print(f"  ✓ {f}")
 
