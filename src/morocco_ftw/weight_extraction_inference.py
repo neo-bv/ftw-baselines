@@ -13,6 +13,10 @@ import rasterio
 from rasterio.enums import ColorInterp
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
+from pathlib import Path  # Add this import if not already there
+BASE_PATH = Path(os.environ.get('FTW_BASE_PATH', Path(__file__).parent.parent.parent))
+print(f"Using base path: {BASE_PATH}")
+
 
 # Set backend to avoid GUI issues
 os.environ['MPLBACKEND'] = 'Agg'
@@ -21,7 +25,7 @@ class SimpleRasterDataset(Dataset):
     """Simple dataset for loading raster patches"""
     
     def __init__(self, raster_path, patch_size=512, stride=None, padding=64):
-        self.raster_path = raster_path
+        self.raster_path = str(raster_path)
         self.patch_size = patch_size
         self.padding = padding
         
@@ -31,7 +35,7 @@ class SimpleRasterDataset(Dataset):
             self.stride = stride
             
         # Open raster and get info
-        with rasterio.open(raster_path) as src:
+        with rasterio.open(str(raster_path)) as src:
             self.height, self.width = src.shape
             self.profile = src.profile
             self.transform = src.transform
@@ -57,7 +61,7 @@ class SimpleRasterDataset(Dataset):
         x, y, patch_width, patch_height = self.patches[idx]
         
         # Read patch from raster
-        with rasterio.open(self.raster_path) as src:
+        with rasterio.open(str(self.raster_path)) as src:
             # Create window
             window = rasterio.windows.Window(x, y, patch_width, patch_height)
             
@@ -84,7 +88,7 @@ def extract_model_weights(checkpoint_path):
     print(f"Extracting weights from: {checkpoint_path}")
     
     # Load checkpoint
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    checkpoint = torch.load(str(checkpoint_path), map_location='cpu')
     
     # Extract hyperparameters
     hparams = checkpoint['hyper_parameters']
@@ -173,7 +177,7 @@ def run_inference_on_image(image_path, model_path, output_path, batch_size=2, pa
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
     
     # Get image info for output
-    with rasterio.open(image_path) as src:
+    with rasterio.open(str(image_path)) as src:
         height, width = src.shape
         profile = src.profile
         transform = src.transform
@@ -229,7 +233,7 @@ def run_inference_on_image(image_path, model_path, output_path, batch_size=2, pa
         'interleave': 'pixel'
     })
     
-    with rasterio.open(output_path, 'w', **profile) as dst:
+    with rasterio.open(str(output_path), 'w', **profile) as dst:
         dst.update_tags(**tags)
         dst.write_colormap(1, {1: (255, 0, 0), 2: (0, 255, 0)})
         dst.colorinterp = [ColorInterp.palette]
@@ -241,7 +245,7 @@ def run_inference_on_image(image_path, model_path, output_path, batch_size=2, pa
 def test_checkpoint_content(checkpoint_path):
     """Test what's in the checkpoint file"""
     try:
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        checkpoint = torch.load(str(checkpoint_path), map_location='cpu')
         print("Checkpoint loaded successfully")
         print(f"Keys in checkpoint: {list(checkpoint.keys())}")
         
@@ -269,8 +273,8 @@ def main():
     # model_path = r"logs\Morocco-FTW-Transfer\lightning_logs\version_4\checkpoints\epoch=100-val_loss=0.42.ckpt"
     
     # NEW FILTERED DATA MODEL (best checkpoint from your training):
-    #model_path = r"logs\Morocco-FTW-Filtered\lightning_logs\version_2\checkpoints\epoch=104-val_loss=0.41.ckpt"
-    model_path = r"logs/Morocco-FTW-Filtered/lightning_logs/version_9/checkpoints/epoch=100-val_loss=0.74.ckpt"
+    model_path = BASE_PATH / "logs" / "Morocco-FTW-Filtered" / "lightning_logs" / "version_2" / "checkpoints" / "epoch=104-val_loss=0.41.ckpt"
+    #model_path = r"logs/Morocco-FTW-Filtered/lightning_logs/version_9/checkpoints/epoch=100-val_loss=0.74.ckpt"
     
     # Test checkpoint first
     print("Testing checkpoint file...")
@@ -279,9 +283,9 @@ def main():
     
     # Same Sentinel-2 images as before
     images = [
-        "morocco_mosaic.tif",
-        "morocco_mid_mosaic.tif", 
-        "morocco_tr_aoi.tif"
+        BASE_PATH / "morocco_mosaic.tif",
+        BASE_PATH / "morocco_mid_mosaic.tif", 
+        BASE_PATH / "morocco_tr_aoi.tif"
     ]
     
     # Process each image
@@ -298,7 +302,7 @@ def main():
         # output_path = f"{base_name}_morocco_finetuned.tif"
         
         # NEW OUTPUT PATH for filtered model:
-        output_path = f"{base_name}_morocco_CCBY_filtered0.02.tif"  # Clear naming for filtered model
+        output_path = BASE_PATH/ f"{base_name}_morocco_CCBY_filtered0.02.tif"  # Clear naming for filtered model
         
         # Run inference
         start_time = time.time()
