@@ -76,6 +76,7 @@ python src/morocco_ftw/preprocessing_for_training.py
 python src/morocco_ftw/organize_morocco_data.py
 python src/morocco_ftw/create_chips.py
 ```
+After get the identical folder structure as FTW, please check if there's semantic_2class inside of label_masks, if not you could just copy semantic_3class as semantic_2class cause we didn't generate 2class label mask, using 3class pretend we have. 
 ## 4. Model training
 ```bash
 python src/morocco_ftw/train_morocco.py
