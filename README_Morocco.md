@@ -59,24 +59,37 @@ python -c "import rasterio; print(rasterio.__version__)"
 ```
 
 # Usage
-## 1. Create mosaics for Sentinel-2 imagery and NDVI-Based Field Filtering 
+## 1. Create mosaics for Sentinel-2 imagery and NDVI-Based Field Filtering
+```bash
 python src/morocco_ftw/mosaic_sentinel.py
 python src/morocco_ftw/ndvi_check.py
+```
 ## 2. Raster Ground Truth Generation
+```bash
 python src/morocco_ftw/3class_raster_prepare.py
+```
 ## 3. Training data preparation and organization
+```bash
 python src/morocco_ftw/preprocessing_for_training.py
 python src/morocco_ftw/organize_morocco_data.py
 python src/morocco_ftw/create_chips.py
+```
 ## 4. Model training
+```bash
 python src/morocco_ftw/train_morocco.py
+```
 Training configuration is in morocco_config.yaml
 Before training, should set up "set KMP_DUPLICATE_LIB_OK=TRUE"
+
 ## 5. Inference
+```bash
 python src/morocco_ftw/weight_extraction_inference.py
+```
 ## 6. Post-processing
+```bash
 python src/morocco_ftw/gdal_polygonize_windows.py input_prediction.tif output_polygons.gpkg
 python src/morocco_ftw/aoi_vector_merge_multipolygon.py
+```
 
 
 
