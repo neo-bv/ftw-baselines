@@ -7,27 +7,30 @@ import pandas as pd
 from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
+from pathlib import Path
+BASE_PATH = Path(os.environ.get('FTW_BASE_PATH', Path(__file__).parent.parent.parent))
+print(f"Using base path: {BASE_PATH}")
 
 # Configuration
 vector_tile_pairs = [
     {
         'vector': r"S:\E043 Crop classification and field delineation\04_FieldDelineation\TrainingData_Assignment\04_FromCeinsys\Results_AOI\Field_Delineation_Morocco_Ceinsys\AOIs_Morocco1.shp",
-        'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_bl_gtaoi.tif",
+        'sentinel': BASE_PATH / "morocco_bl_gtaoi.tif",
         'name': 'Morocco1_BL'
     },
     {
         'vector': r"S:\E043 Crop classification and field delineation\04_FieldDelineation\TrainingData_Assignment\04_FromCeinsys\Results_AOI\Field_Delineation_Morocco_Ceinsys\AOIs_Morocco2.shp",
-        'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_tr_gtaoi.tif",
+        'sentinel': BASE_PATH / "morocco_tr_gtaoi.tif",
         'name': 'Morocco2_TR'
     },
     {
         'vector': r"S:\E043 Crop classification and field delineation\04_FieldDelineation\TrainingData_Assignment\05_FromStef\Parcel GT Stef New.shp",
-        'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_br_gtaoi.tif",
+        'sentinel': BASE_PATH / "morocco_br_gtaoi.tif",
         'name': 'Stef_BR'
     }
 ]
 
-output_dir = "Output/"
+output_dir = BASE_PATH / "Output"
 THRESHOLDS_TO_TEST = [0.01, 0.02, 0.05, 0.1]  # Different NDVI difference thresholds to test
 
 def calculate_ndvi(red, nir):
@@ -63,7 +66,7 @@ def process_aoi(vector_path, sentinel_path, aoi_name, save_images=True):
     print(f"Processing {aoi_name}...")
     
     # Check files exist
-    if not os.path.exists(vector_path) or not os.path.exists(sentinel_path):
+    if not os.path.exists(str(vector_path)) or not os.path.exists(str(sentinel_path)):
         print(f"  Skipping {aoi_name} - missing files")
         return None, None
     
@@ -73,7 +76,7 @@ def process_aoi(vector_path, sentinel_path, aoi_name, save_images=True):
     print(f"  Loaded {len(gdf)} polygons, CRS: {original_crs}")
     
     # Load Sentinel-2 and calculate NDVI
-    with rasterio.open(sentinel_path) as src:
+    with rasterio.open(str(sentinel_path)) as src:
         bands = src.read()
         
         # Assuming band order: R_A, G_A, B_A, NIR_A, R_B, G_B, B_B, NIR_B
@@ -88,7 +91,7 @@ def process_aoi(vector_path, sentinel_path, aoi_name, save_images=True):
         # Save NDVI images for this AOI (only once, not for each threshold)
         if save_images:
             ndvi_dir = os.path.join(output_dir, "NDVI_Images")
-            os.makedirs(ndvi_dir, exist_ok=True)
+            os.makedirs(str(ndvi_dir), exist_ok=True)
             
             ndvi_a_path = os.path.join(ndvi_dir, f"{aoi_name}_NDVI_WindowA.tif")
             ndvi_b_path = os.path.join(ndvi_dir, f"{aoi_name}_NDVI_WindowB.tif")
@@ -127,7 +130,7 @@ def process_aoi(vector_path, sentinel_path, aoi_name, save_images=True):
             
             try:
                 # Window A NDVI
-                with rasterio.open(temp_a) as src_a:
+                with rasterio.open(str(temp_a)) as src_a:
                     masked_a, _ = mask(src_a, geom, crop=True, nodata=np.nan)
                     valid_a = masked_a[0][~np.isnan(masked_a[0])]
                     ndvi_a_mean = np.mean(valid_a) if len(valid_a) > 0 else np.nan
@@ -136,7 +139,7 @@ def process_aoi(vector_path, sentinel_path, aoi_name, save_images=True):
                     ndvi_a_max = np.max(valid_a) if len(valid_a) > 0 else np.nan
                 
                 # Window B NDVI
-                with rasterio.open(temp_b) as src_b:
+                with rasterio.open(str(temp_b)) as src_b:
                     masked_b, _ = mask(src_b, geom, crop=True, nodata=np.nan)
                     valid_b = masked_b[0][~np.isnan(masked_b[0])]
                     ndvi_b_mean = np.mean(valid_b) if len(valid_b) > 0 else np.nan
@@ -186,7 +189,7 @@ def process_aoi(vector_path, sentinel_path, aoi_name, save_images=True):
         
         # Clean up temp files
         for temp_file in [temp_a, temp_b]:
-            if os.path.exists(temp_file):
+            if os.path.exists(str(temp_file)):
                 os.remove(temp_file)
     
     return pd.DataFrame(results), original_crs
@@ -211,7 +214,7 @@ def save_threshold_results(df_filtered, threshold, output_crs):
     """Save results for a specific threshold"""
     threshold_str = f"{threshold:.2f}".replace('.', 'p')
     threshold_dir = os.path.join(output_dir, f"Threshold_{threshold_str}")
-    os.makedirs(threshold_dir, exist_ok=True)
+    os.makedirs(str(threshold_dir), exist_ok=True)
     
     # All results for this threshold
     gdf_all = gpd.GeoDataFrame(df_filtered, geometry='geometry', crs=output_crs)
@@ -270,7 +273,7 @@ def main():
     output_crs = None
     
     # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(str(output_dir), exist_ok=True)
     
     # Process each AOI (only once - extract raw NDVI data)
     for pair in vector_tile_pairs:
