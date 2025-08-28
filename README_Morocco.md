@@ -9,20 +9,20 @@ The Morocco FTW project addresses the challenge of agricultural field boundary d
 4. Inference: Running predictions on Sentinel-2 imagery
 5. Post-processing: Converting predictions to vector format and merging results
 
-The following scripts could run in order:
+The following scripts usage are below:
 src/morocco_ftw/
-├── mosaic_sentinel.py               # Create Sentinel-2 mosaics
-├── ndvi_check.py                    # NDVI-based field filtering
-├── 3class_raster_prepare.py         # Convert filtered polygons to 3-class rasters
-├── preprocessing_for_training.py    # Create training patches from rasters
-├── organize_morocco_data.py         # Structure data for FTW training format
-├── create_chips.py                  # Generate metadata for training chips
-├── calculate_class_weight_morocco.py # Calculate class weights used for training
-├── train_morocco.py                 # Fine-tune FTW model on Morocco data
-├── weight_extraction_inference.py   # Run inference on Sentinel-2 images
-├── gdal_polygonize_windows.py       # Convert predictions to polygons
-├── aoi_vector_merge_multipolygon.py # Merge and clip results with AOI
-└── geopandas_parquet_merge.py       # Alternative merging approach
+**mosaic_sentinel.py**               # Create Sentinel-2 mosaics
+ndvi_check.py                    # NDVI-based field filtering
+3class_raster_prepare.py         # Convert filtered polygons to 3-class rasters
+preprocessing_for_training.py    # Create training patches from rasters
+organize_morocco_data.py         # Structure data for FTW training format
+create_chips.py                  # Generate metadata for training chips
+calculate_class_weight_morocco.py # Calculate class weights used for training
+train_morocco.py                 # Fine-tune FTW model on Morocco data
+weight_extraction_inference.py   # Run inference on Sentinel-2 images
+gdal_polygonize_windows.py       # Convert predictions to polygons
+aoi_vector_merge_multipolygon.py # Merge and clip results with AOI
+geopandas_parquet_merge.py       # Alternative merging approach
 
 To set up the environment, the following command should conduct:
 conda create -n ftw python=3.9 -y
@@ -59,12 +59,13 @@ python src/morocco_ftw/organize_morocco_data.py
 python src/morocco_ftw/create_chips.py
 ## 4. Model training
 python src/morocco_ftw/train_morocco.py
+Training configuration is in morocco_config.yaml
+Before training, should set up "set KMP_DUPLICATE_LIB_OK=TRUE"
 ## 5. Inference
 python src/morocco_ftw/weight_extraction_inference.py
 ## 6. Post-processing
 python src/morocco_ftw/gdal_polygonize_windows.py input_prediction.tif output_polygons.gpkg
 python src/morocco_ftw/aoi_vector_merge_multipolygon.py
 
-Training configuration is in morocco_config.yaml
-Before training, should set up "set KMP_DUPLICATE_LIB_OK=TRUE"
+
 
