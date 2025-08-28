@@ -1,7 +1,11 @@
+#This script is used for using gdal to mosaic sentinel 2 images
 import os
 import sys
 from osgeo import gdal, ogr, osr
 import subprocess
+from pathlib import Path  # Add this import
+BASE_PATH = Path(os.environ.get('FTW_BASE_PATH', Path(__file__).parent.parent.parent))
+print(f"Using base path: {BASE_PATH}")
 
 def mosaic_with_gdal_python(tile1_path, tile2_path, output_path, aoi_shapefile=None):
     """
@@ -18,19 +22,19 @@ def mosaic_with_gdal_python(tile1_path, tile2_path, output_path, aoi_shapefile=N
     
     # Check if input files exist
     for i, file_path in enumerate([tile1_path, tile2_path], 1):
-        if not os.path.exists(file_path):
+        if not os.path.exists(str(file_path)):
             print(f"Tile {i} not found: {file_path}")
             return False
         else:
-            size_mb = os.path.getsize(file_path) / (1024*1024)
+            size_mb = os.path.getsize(str(file_path)) / (1024*1024)
             print(f"Tile {i} found: {file_path} ({size_mb:.1f} MB)")
     
     # Open and inspect the datasets
     print("Inspecting input tiles...")
     
     try:
-        ds1 = gdal.Open(tile1_path)
-        ds2 = gdal.Open(tile2_path)
+        ds1 = gdal.Open(str(tile1_path))
+        ds2 = gdal.Open(str(tile2_path))
         
         if ds1 is None or ds2 is None:
             print("Error opening one or both datasets")
@@ -114,7 +118,7 @@ def mosaic_with_gdal_python(tile1_path, tile2_path, output_path, aoi_shapefile=N
         return False
     
     # Optional: Clip with AOI
-    if aoi_shapefile and os.path.exists(aoi_shapefile):
+    if aoi_shapefile and os.path.exists(str(aoi_shapefile)):
         print(f"Clipping with AOI: {aoi_shapefile}")
         
         clipped_path = output_path.replace('.tif', '_clipped.tif')
@@ -145,19 +149,19 @@ def mosaic_with_gdal_python(tile1_path, tile2_path, output_path, aoi_shapefile=N
             print("Keeping unclipped mosaic")
     
     # Clean up VRT file
-    if os.path.exists(vrt_path):
+    if os.path.exists(str(vrt_path)):
         os.remove(vrt_path)
         print("Cleaned up temporary VRT file")
     
     # Final verification
-    if os.path.exists(output_path):
-        size_mb = os.path.getsize(output_path) / (1024*1024)
+    if os.path.exists(str(output_path)):
+        size_mb = os.path.getsize(str(output_path)) / (1024*1024)
         print(f"Mosaic completed successfully")
         print(f"Output: {output_path}")
         print(f"Size: {size_mb:.1f} MB")
         
         # Show final dataset info
-        final_check = gdal.Open(output_path)
+        final_check = gdal.Open(str(output_path))
         if final_check:
             gt = final_check.GetGeoTransform()
             print(f"Final mosaic info:")
@@ -190,7 +194,7 @@ def mosaic_with_gdal_command(tile1_path, tile2_path, output_path):
         print(f"Running: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True)
         
-        if result.returncode == 0 and os.path.exists(output_path):
+        if result.returncode == 0 and os.path.exists(str(output_path)):
             print("gdal_merge.py succeeded")
             return True
         else:
@@ -220,7 +224,7 @@ def mosaic_with_gdal_command(tile1_path, tile2_path, output_path):
             print(f"Running: {' '.join(cmd_translate)}")
             result_translate = subprocess.run(cmd_translate, capture_output=True, text=True)
             
-            if result_translate.returncode == 0 and os.path.exists(output_path):
+            if result_translate.returncode == 0 and os.path.exists(str(output_path)):
                 print("Translation to GeoTIFF succeeded")
                 os.remove(vrt_path)  # Clean up VRT
                 return True
@@ -242,22 +246,22 @@ def main():
     gdal.UseExceptions()
     
     # Get file paths
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.dirname(os.path.dirname(script_dir))
+    #script_dir = os.path.dirname(os.path.abspath(__file__))
+    #BASE_PATH = os.path.dirname(os.path.dirname(script_dir))
     
     # Option 1: Original files
-    # tile1_path = os.path.join(parent_dir, "morocco_aoi1c1.tif")
-    # tile2_path = os.path.join(parent_dir, "morocco_aoi2c1.tif")
-    # output_path = os.path.join(parent_dir, "morocco_mosaic.tif")
+    # tile1_path = os.path.join(BASE_PATH, "morocco_aoi1c1.tif")
+    # tile2_path = os.path.join(BASE_PATH, "morocco_aoi2c1.tif")
+    # output_path = os.path.join(BASE_PATH, "morocco_mosaic.tif")
     
     # Option 2: Mid files
-    tile1_path = os.path.join(parent_dir, "morocco_mid1_aoi.tif")
-    tile2_path = os.path.join(parent_dir, "morocco_mid2_aoi.tif")
-    output_path = os.path.join(parent_dir, "morocco_mid_mosaic.tif")
+    tile1_path = os.path.join(BASE_PATH, "morocco_mid1_aoi.tif")
+    tile2_path = os.path.join(BASE_PATH, "morocco_mid2_aoi.tif")
+    output_path = os.path.join(BASE_PATH, "morocco_mid_mosaic.tif")
     
-    aoi_shapefile = os.path.join(parent_dir, "SECTEURS.shp")
+    aoi_shapefile = os.path.join(BASE_PATH, "SECTEURS.shp")
 
-    print(f"Working directory: {parent_dir}")
+    print(f"Working directory: {BASE_PATH}")
     print(f"Tile 1: {tile1_path}")
     print(f"Tile 2: {tile2_path}")
     print(f"AOI: {aoi_shapefile}")
@@ -270,11 +274,11 @@ def main():
     # Check available files
     print("Available TIF files:")
     try:
-        files = os.listdir(parent_dir)
+        files = os.listdir(str(BASE_PATH))
         tif_files = [f for f in files if f.endswith('.tif')]
         for f in sorted(tif_files):
-            full_path = os.path.join(parent_dir, f)
-            size_mb = os.path.getsize(full_path) / (1024*1024)
+            full_path = os.path.join(BASE_PATH, f)
+            size_mb = os.path.getsize(str(full_path)) / (1024*1024)
             print(f"  {f} ({size_mb:.1f} MB)")
     except Exception as e:
         print(f"Error listing files: {e}")
