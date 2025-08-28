@@ -4,6 +4,8 @@ import numpy as np
 import rasterio
 from collections import Counter
 from pathlib import Path
+BASE_PATH = Path(os.environ.get('FTW_BASE_PATH', Path(__file__).parent.parent.parent))
+print(f"Using base path: {BASE_PATH}")
 
 def calculate_class_weights(data_root, country="morocco"):
     """Calculate class weights for 3-class dataset"""
@@ -22,7 +24,7 @@ def calculate_class_weights(data_root, country="morocco"):
     
     # Count pixels for each class across all masks
     for mask_file in masks_3class_path.glob("*.tif"):
-        with rasterio.open(mask_file) as src:
+        with rasterio.open(str(mask_file)) as src:
             mask = src.read(1)
             unique, counts = np.unique(mask, return_counts=True)
             
@@ -63,7 +65,7 @@ def calculate_class_weights(data_root, country="morocco"):
     return weights
 
 if __name__ == "__main__":
-    data_root = "data"
+    data_root = BASE_PATH / "data"
     
     weights = calculate_class_weights(data_root, "morocco")
     
