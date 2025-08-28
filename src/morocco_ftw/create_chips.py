@@ -5,6 +5,9 @@ import rasterio
 from pathlib import Path
 from shapely.geometry import box
 import os
+from pathlib import Path  # Add this import if not already there
+BASE_PATH = Path(os.environ.get('FTW_BASE_PATH', Path(__file__).parent.parent.parent))
+print(f"Using base path: {BASE_PATH}")
 
 def create_chips_metadata(ftw_data_dir):
     """Create chips_morocco_filtered.parquet with real geometries from actual patch files"""
@@ -48,7 +51,7 @@ def create_chips_metadata(ftw_data_dir):
         
         try:
             # Get spatial information from the patch file
-            with rasterio.open(patch_file) as src:
+            with rasterio.open(str(patch_file)) as src:
                 bounds = src.bounds
                 crs = src.crs
                 
@@ -100,7 +103,7 @@ def create_chips_metadata(ftw_data_dir):
     
     # Save as parquet with filtered naming
     chips_file = morocco_dir / "chips_morocco_filtered.parquet"
-    gdf.to_parquet(chips_file)
+    gdf.to_parquet(str(chips_file))
     
     print(f"Created chips metadata: {chips_file}")
     
@@ -120,7 +123,7 @@ def test_ftw_loading(ftw_data_dir):
     
     try:
         import sys
-        sys.path.append(r"C:\Users\qin.xu\github\ftw-baselines\src")
+        sys.path.append(BASE_PATH / "src")
         
         from ftw.datasets import FTW
         
@@ -168,10 +171,10 @@ def test_ftw_loading(ftw_data_dir):
 if __name__ == "__main__":
     
     # Old file path (commented out)
-    # ftw_data_dir = r"C:\Users\qin.xu\github\ftw-baselines\data\ftw"
+    # ftw_data_dir = BASE_PATH / "data" / "ftw"
     
     # Use same data directory but target the filtered subdirectory
-    ftw_data_dir = r"C:\Users\qin.xu\github\ftw-baselines\data\ftw"
+    ftw_data_dir = BASE_PATH / "data" / "ftw"
     
     try:
         # Create chips metadata for filtered data
