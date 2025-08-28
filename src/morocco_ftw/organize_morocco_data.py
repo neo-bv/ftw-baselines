@@ -5,6 +5,9 @@ import pandas as pd
 import geopandas as gpd
 from pathlib import Path
 
+BASE_PATH = Path(os.environ.get('FTW_BASE_PATH', Path(__file__).parent.parent.parent))
+print(f"Using base path: {BASE_PATH}")
+
 def organize_morocco_data_for_ftw(preprocessed_dir, ftw_data_dir):
     """
     Organize preprocessed Morocco patches to match FTW dataset structure
@@ -79,9 +82,9 @@ def organize_morocco_data_for_ftw(preprocessed_dir, ftw_data_dir):
             # Copy files with new sequential naming
             new_name = f"{patch_counter}.tif"
             
-            shutil.copy2(patch_file, window_a_dir / new_name)
-            shutil.copy2(window_b_file, window_b_dir / new_name)
-            shutil.copy2(mask_file, masks_dir / new_name)
+            shutil.copy2(str(patch_file), window_a_dir / new_name)
+            shutil.copy2(str(window_b_file), window_b_dir / new_name)
+            shutil.copy2(str(mask_file), masks_dir / new_name)
             
             # Record patch metadata
             all_patches.append({
@@ -105,7 +108,7 @@ def organize_morocco_data_for_ftw(preprocessed_dir, ftw_data_dir):
     
     chips_gdf = gpd.GeoDataFrame(chips_df, crs='EPSG:4326')
     chips_parquet = morocco_dir / "chips_morocco_filtered.parquet"
-    chips_gdf.to_parquet(chips_parquet)
+    chips_gdf.to_parquet(str(chips_parquet))
     
     print(f"Created: {chips_parquet}")
     
@@ -132,15 +135,15 @@ def assign_split(patch_idx, total_patches):
 if __name__ == "__main__":
     # Configuration
     # Old preprocessed directory 
-    # preprocessed_dir = r"C:\Users\qin.xu\github\ftw-baselines\morocco_ftw_training"
+    # preprocessed_dir = BASE_PATH / "morocco_ftw_training"
     
     # New filtered preprocessed directory
-    preprocessed_dir = r"C:\Users\qin.xu\github\ftw-baselines\morocco_ftw_training_filtered"
-    ftw_data_dir = r"C:\Users\qin.xu\github\ftw-baselines\data\ftw"
+    preprocessed_dir = BASE_PATH / "morocco_ftw_training"
+    ftw_data_dir = BASE_PATH / "data" / "ftw"
     
     try:
         # Organize data
-        final_data_dir = organize_morocco_data_for_ftw(preprocessed_dir, ftw_data_dir)
+        final_data_dir = organize_morocco_data_for_ftw(str(preprocessed_dir), str(ftw_data_dir))
         print("Data organization complete")
         
     except Exception as e:
