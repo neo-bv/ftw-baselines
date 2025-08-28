@@ -37,22 +37,37 @@ src/morocco_ftw/
 
 To set up the environment, the following command should conduct:
 conda create -n ftw python=3.9 -y
+
 conda activate ftw
+
 conda install -c conda-forge gdal -y
+
 where gdal
+
 conda list gdal
+
 conda info --envs
+
 dir C:\Users\qin.xu\AppData\Local\anaconda3\envs\ftw\Library\bin\gdal*.dll
+
 conda install -c conda-forge rasterio pyproj -y
+
 pip list
+
 python
+
 python -m pip uninstall pip setuptools
+
 python -m pip install --upgrade pip
+
 pip install -upgrade pip
+
 pip install pip
-pip install pip
+
 pip install -U pip
+
 pip install --upgrade setuptools
+
 pip install ftw-tools
 
 pip install ftw-tools stackstac rioxarray pyarrow
