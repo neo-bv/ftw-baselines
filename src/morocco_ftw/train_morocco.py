@@ -8,14 +8,17 @@ import multiprocessing
 import os
 import glob
 from ftw_cli.model import fit
+from pathlib import Path  
+BASE_PATH = Path(os.environ.get('FTW_BASE_PATH', Path(__file__).parent.parent.parent))
+print(f"Using base path: {BASE_PATH}")
 
 def main():
     print("Starting Morocco model fine-tuning with filtered data...")
     print("-" * 60)
     
     # Configuration setup
-    pretrained_model = "3_Class_CCBY_FTW_Pretrained.ckpt"
-    config_file = "morocco_config.yaml"
+    pretrained_model = BASE_PATH / "3_Class_CCBY_FTW_Pretrained.ckpt"
+    config_file = BASE_PATH/ "morocco_config.yaml"
     
     # Verify required files exist
     if not os.path.exists(pretrained_model):
@@ -30,7 +33,7 @@ def main():
         return 1
     
     # Verify Morocco data directory exists
-    morocco_data_path = "C:/Users/qin.xu/github/ftw-baselines/data/ftw/morocco"
+    morocco_data_path = BASE_PATH / "data" / "ftw" / "morocco"
     if not os.path.exists(morocco_data_path):
         print(f"Error: Morocco data directory not found - {morocco_data_path}")
         print("Please ensure the filtered Morocco data is available at the specified path")
@@ -61,13 +64,13 @@ def main():
         
         print("\nFine-tuning with filtered data complete!")
         print("\nNext steps:")
-        print("1. Review training logs in logs/Morocco-FTW-Filtered/lightning_logs/")
+        print("1. Review training logs in BASE_PATH / "logs" / "Morocco-FTW-Filtered" / "lightning_logs"")
         print("2. Locate best model in the checkpoints directory")
         print("3. Use for inference on Morocco images")
         print("4. Compare performance with original model and unfiltered data")
         
         # Show generated checkpoints
-        checkpoints = glob.glob("logs/Morocco-FTW-Filtered/lightning_logs/*/checkpoints/*.ckpt")
+        checkpoints = glob.glob(str(BASE_PATH / "logs" / "Morocco-FTW-Filtered" / "lightning_logs" / "*" / "checkpoints" / "*.ckpt"))
         if checkpoints:
             print("\nGenerated model checkpoints:")
             for ckpt in checkpoints:
