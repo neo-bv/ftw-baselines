@@ -11,17 +11,28 @@ The Morocco FTW project addresses the challenge of agricultural field boundary d
 
 The following scripts usage are below:
 src/morocco_ftw/
-**mosaic_sentinel.py**               # Create Sentinel-2 mosaics</p>
+**mosaic_sentinel.py**               # Create Sentinel-2 mosaics
+
 **ndvi_check.py**                    # NDVI-based field filtering
+
 **3class_raster_prepare.py**         # Convert filtered polygons to 3-class rasters
+
 **preprocessing_for_training.py**    # Create training patches from rasters
+
 **organize_morocco_data.py**         # Structure data for FTW training format
+
 **create_chips.py**                  # Generate metadata for training chips
+
 **calculate_class_weight_morocco.py** # Calculate class weights used for training
+
 **train_morocco.py**                 # Fine-tune FTW model on Morocco data
+
 **weight_extraction_inference.py**   # Run inference on Sentinel-2 images
+
 **gdal_polygonize_windows.py**       # Convert predictions to polygons
+
 **aoi_vector_merge_multipolygon.py** # Merge and clip results with AOI
+
 **geopandas_parquet_merge.py**       # Alternative merging approach
 
 To set up the environment, the following command should conduct:
