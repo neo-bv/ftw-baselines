@@ -7,6 +7,7 @@ from pathlib import Path
 import tempfile
 import shutil
 from datetime import datetime
+import re
 
 def preprocess_for_ftw_training(sentinel_path, mask_path, output_dir, patch_size=256, stride=None, min_labeled_pixels=100):
     """
@@ -32,6 +33,7 @@ def preprocess_for_ftw_training(sentinel_path, mask_path, output_dir, patch_size
     print(f"Processing {sentinel_path}")
     print(f"Output: {output_dir}")
     print(f"Patch size: {patch_size}x{patch_size}, stride: {stride}")
+    print(f"Min labeled pixels threshold: {min_labeled_pixels}")
     
     # Verify file alignment
     s2_width, s2_height = get_raster_dimensions(sentinel_path)
@@ -77,8 +79,8 @@ def preprocess_for_ftw_training(sentinel_path, mask_path, output_dir, patch_size
             mask_patch = masks_dir / f"{patch_name}.tif"
             extract_patch(mask_path, str(mask_patch), x_start, y_start, patch_size, patch_size)
             
-            # Check label density
-            labeled_pixels, total_pixels = count_labeled_pixels(str(mask_patch))
+            # Check label density using IMPROVED method
+            labeled_pixels, total_pixels = improved_count_labeled_pixels(str(mask_patch))
             
             if labeled_pixels == 0:
                 os.remove(str(mask_patch))
@@ -114,33 +116,54 @@ def preprocess_for_ftw_training(sentinel_path, mask_path, output_dir, patch_size
     
     return output_dir
 
-def count_labeled_pixels(mask_patch_path):
-    """Count labeled pixels in a mask patch using gdalinfo statistics"""
-    
+def improved_count_labeled_pixels(mask_patch_path):
+    """
+    IMPROVED method to count labeled pixels using gdalinfo statistics
+    This replaces the old crude estimation method
+    """
     cmd = f'gdalinfo -stats "{mask_patch_path}"'
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     
     if result.returncode != 0:
         return 0, 0
     
-    # Parse maximum value from statistics
+    # Parse the output to get actual statistics
+    min_val = 0
     max_val = 0
+    mean_val = 0
+    
     for line in result.stdout.split('\n'):
-        if 'STATISTICS_MAXIMUM' in line:
-            import re
-            match = re.search(r'STATISTICS_MAXIMUM=([0-9.]+)', line)
+        if 'STATISTICS_MINIMUM' in line:
+            match = re.search(r'STATISTICS_MINIMUM=([0-9.-]+)', line)
+            if match:
+                min_val = float(match.group(1))
+        elif 'STATISTICS_MAXIMUM' in line:
+            match = re.search(r'STATISTICS_MAXIMUM=([0-9.-]+)', line)
             if match:
                 max_val = float(match.group(1))
-                break
+        elif 'STATISTICS_MEAN' in line:
+            match = re.search(r'STATISTICS_MEAN=([0-9.-]+)', line)
+            if match:
+                mean_val = float(match.group(1))
     
-    # Estimate labeled pixels based on presence of labels
-    if max_val > 0:
-        total_pixels = 256 * 256
-        # Better estimation by checking if field or boundary pixels exist
-        estimated_labeled = int(total_pixels * 0.3)  # Conservative estimate
+    total_pixels = 256 * 256
+    
+    if max_val == 0:
+        return 0, total_pixels
+    
+    # Better estimation based on actual statistics
+    if mean_val > 0:
+        # More accurate estimate based on mean value
+        # For 3-class data (0=background, 1=field, 2=boundary):
+        # mean ≈ (num_field_pixels * 1 + num_boundary_pixels * 2) / total_pixels
+        
+        # Conservative estimate: assume most labeled pixels are class 1 (fields)
+        estimated_labeled = int((mean_val - min_val) / (max_val - min_val) * total_pixels)
+        estimated_labeled = max(0, min(estimated_labeled, total_pixels))
+        
         return estimated_labeled, total_pixels
     else:
-        return 0, 256 * 256
+        return 0, total_pixels
 
 def split_sentinel_bands(input_file, window_a_output, window_b_output):
     """Split 8-band Sentinel-2 into 4-band Window A and Window B"""
@@ -185,7 +208,7 @@ def extract_patch(input_raster, output_patch, x_start, y_start, width, height):
 def create_dataset_metadata(output_dir, patch_count, patch_size, min_labeled_pixels):
     """Create metadata file for the dataset"""
     
-    metadata = f"""# Morocco FTW Training Dataset (Filtered Active Fields)
+    metadata = f"""# Morocco FTW Training Dataset (Filtered Active Fields)  
 Created: {datetime.now()}
 Total Valid Patches: {patch_count}
 Patch Size: {patch_size}x{patch_size}
@@ -196,8 +219,7 @@ Pixel Size: 10m
 
 Data Source: NDVI-filtered active fields
 Filter Conditions:
-- NDVI > 0.15 in both windows (avoid bare soil)
-- |NDVI_A - NDVI_B| > 0.1 (temporal change)
+- |NDVI_A - NDVI_B| > 0.02 (temporal change)
 
 Structure:
 - window_a/: Sentinel-2 Window A patches (R,G,B,NIR)
@@ -222,45 +244,29 @@ Note:
 
 if __name__ == "__main__":
     
-    # OLD CONFIGURATION (commented out):
-    # morocco_pairs = [
-    #     {
-    #         'name': 'Morocco1_BL',
-    #         'sentinel': r'C:\Users\qin.xu\github\ftw-baselines\morocco_bl_gtaoi.tif',
-    #         'mask': r'C:\Users\qin.xu\github\ftw-baselines\Morocco1_BL_aligned.tif'
-    #     },
-    #     {
-    #         'name': 'Morocco2_TR', 
-    #         'sentinel': r'C:\Users\qin.xu\github\ftw-baselines\morocco_tr_gtaoi.tif',
-    #         'mask': r'C:\Users\qin.xu\github\ftw-baselines\Morocco2_TR_aligned.tif'
-    #     },
-    #     {
-    #         'name': 'Stef_BR',
-    #         'sentinel': r'C:\Users\qin.xu\github\ftw-baselines\morocco_br_gtaoi.tif',
-    #         'mask': r'C:\Users\qin.xu\github\ftw-baselines\Stef_BR_aligned.tif'
-    #     }
-    # ]
-    
-    # NEW CONFIGURATION - Using filtered polygon rasters
+    # FIXED CONFIGURATION - Using dataset-specific thresholds
     morocco_pairs = [
         {
             'name': 'Morocco1_BL',
             'sentinel': r'C:\Users\qin.xu\github\ftw-baselines\morocco_bl_gtaoi.tif',
-            'mask': r'C:\Users\qin.xu\github\ftw-baselines\morocco_filtered_3class_Morocco1_BL_aligned.tif'
+            'mask': r'C:\Users\qin.xu\github\ftw-baselines\morocco_filtered_3class_Morocco1_BL_aligned.tif',
+            'min_labeled_pixels': 100  # Standard threshold
         },
         {
             'name': 'Morocco2_TR', 
             'sentinel': r'C:\Users\qin.xu\github\ftw-baselines\morocco_tr_gtaoi.tif',
-            'mask': r'C:\Users\qin.xu\github\ftw-baselines\morocco_filtered_3class_Morocco2_TR_aligned.tif'
+            'mask': r'C:\Users\qin.xu\github\ftw-baselines\morocco_filtered_3class_Morocco2_TR_aligned.tif',
+            'min_labeled_pixels': 100  # Standard threshold
         },
         {
             'name': 'Stef_BR',
             'sentinel': r'C:\Users\qin.xu\github\ftw-baselines\morocco_br_gtaoi.tif',
-            'mask': r'C:\Users\qin.xu\github\ftw-baselines\morocco_filtered_3class_Stef_BR_aligned.tif'
+            'mask': r'C:\Users\qin.xu\github\ftw-baselines\morocco_filtered_3class_Stef_BR_aligned.tif',
+            'min_labeled_pixels': 25   # REDUCED threshold for Stef_BR (was 100)
         }
     ]
     
-    base_output_dir = r'C:\Users\qin.xu\github\ftw-baselines\morocco_ftw_training_filtered'
+    base_output_dir = r'C:\Users\qin.xu\github\ftw-baselines\morocco_ftw_training_fixed'
     
     # Check GDAL installation
     try:
@@ -270,7 +276,7 @@ if __name__ == "__main__":
         print("GDAL not found. Please install GDAL and add to PATH.")
         exit(1)
     
-    print("Creating FTW training chips from NDVI-filtered active fields...")
+    print("Creating FTW training chips with FIXED filtering...")
     print("="*70)
     
     try:
@@ -284,6 +290,7 @@ if __name__ == "__main__":
             print(f"\n{pair['name']}:")
             print(f"  Sentinel: {'✓' if sentinel_exists else '✗'} {pair['sentinel']}")
             print(f"  Mask: {'✓' if mask_exists else '✗'} {pair['mask']}")
+            print(f"  Min labeled pixels: {pair['min_labeled_pixels']}")
             
             if sentinel_exists and mask_exists:
                 valid_pairs.append(pair)
@@ -311,7 +318,7 @@ if __name__ == "__main__":
                 output_dir=str(output_subdir),
                 patch_size=256,
                 stride=256,
-                min_labeled_pixels=100
+                min_labeled_pixels=pair['min_labeled_pixels']  # Use dataset-specific threshold
             )
             
             # Count patches created
@@ -322,10 +329,17 @@ if __name__ == "__main__":
             print(f"✓ Created {patch_count} training patches for {pair['name']}")
         
         print(f"\n{'='*70}")
-        print(f"ALL PREPROCESSING COMPLETE!")
+        print(f"FIXED PREPROCESSING COMPLETE!")
         print(f"{'='*70}")
         print(f"Total patches created: {total_patches}")
         print(f"Training data ready at: {base_output_dir}")
+        print(f"\nKey fixes applied:")
+        print(f"  1. Improved count_labeled_pixels() function")
+        print(f"  2. Dataset-specific thresholds:")
+        print(f"     - Morocco1_BL & Morocco2_TR: 100 pixels")
+        print(f"     - Stef_BR: 25 pixels (4x lower)")
+        print(f"  3. Better statistics-based pixel counting")
+        
         print(f"\nDataset structure:")
         print(f"  {base_output_dir}/")
         for pair in valid_pairs:
@@ -337,8 +351,8 @@ if __name__ == "__main__":
         
         print(f"\nNext steps:")
         print(f"  1. Review dataset_info.txt files in each subfolder")
-        print(f"  2. Use this data for FTW model training")
-        print(f"  3. Only active fields (NDVI filtered) are included in ground truth")
+        print(f"  2. Compare patch counts - Stef_BR should now have more patches")
+        print(f"  3. Use this data for FTW model training")
         
     except Exception as e:
         print(f"Error: {e}")

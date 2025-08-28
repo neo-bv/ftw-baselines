@@ -14,14 +14,14 @@ def main():
     print("-" * 60)
     
     # Configuration setup
-    pretrained_model = "3_Class_FULL_FTW_Pretrained.ckpt"
+    pretrained_model = "3_Class_CCBY_FTW_Pretrained.ckpt"
     config_file = "morocco_config.yaml"
     
     # Verify required files exist
     if not os.path.exists(pretrained_model):
         print(f"Error: Missing pre-trained model file - {pretrained_model}")
         print("\nTo download it, run:")
-        print("wget https://github.com/fieldsoftheworld/ftw-baselines/releases/download/v1/3_Class_FULL_FTW_Pretrained.ckpt")
+        print("wget https://github.com/fieldsoftheworld/ftw-baselines/releases/download/v1/3_Class_CCBY_FTW_Pretrained.ckpt")
         return 1
     
     if not os.path.exists(config_file):

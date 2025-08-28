@@ -269,7 +269,8 @@ def main():
     # model_path = r"logs\Morocco-FTW-Transfer\lightning_logs\version_4\checkpoints\epoch=100-val_loss=0.42.ckpt"
     
     # NEW FILTERED DATA MODEL (best checkpoint from your training):
-    model_path = r"logs\Morocco-FTW-Filtered\lightning_logs\version_2\checkpoints\epoch=104-val_loss=0.41.ckpt"
+    #model_path = r"logs\Morocco-FTW-Filtered\lightning_logs\version_2\checkpoints\epoch=104-val_loss=0.41.ckpt"
+    model_path = r"logs/Morocco-FTW-Filtered/lightning_logs/version_9/checkpoints/epoch=100-val_loss=0.74.ckpt"
     
     # Test checkpoint first
     print("Testing checkpoint file...")
@@ -297,7 +298,7 @@ def main():
         # output_path = f"{base_name}_morocco_finetuned.tif"
         
         # NEW OUTPUT PATH for filtered model:
-        output_path = f"{base_name}_morocco_filtered0.02.tif"  # Clear naming for filtered model
+        output_path = f"{base_name}_morocco_CCBY_filtered0.02.tif"  # Clear naming for filtered model
         
         # Run inference
         start_time = time.time()
