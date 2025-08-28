@@ -10,6 +10,7 @@ The Morocco FTW project addresses the challenge of agricultural field boundary d
 5. Post-processing: Converting predictions to vector format and merging results
 
 The following scripts usage are below:
+
 src/morocco_ftw/
 **mosaic_sentinel.py**               # Create Sentinel-2 mosaics
 
@@ -64,6 +65,7 @@ python -c "import rasterio; print(rasterio.__version__)"
 python src/morocco_ftw/mosaic_sentinel.py
 python src/morocco_ftw/ndvi_check.py
 ```
+Sentinel 2 imagey could be download through experiment from FTW. 
 ## 2. Raster Ground Truth Generation
 ```bash
 python src/morocco_ftw/3class_raster_prepare.py
