@@ -8,6 +8,9 @@ import os
 import tempfile
 import shutil
 
+BASE_PATH = Path(os.environ.get('FTW_BASE_PATH', Path(__file__).parent.parent.parent))
+print(f"Using base path: {BASE_PATH}")
+
 def run_gdal_command(cmd, description=""):
     """Run a GDAL command and handle errors"""
     try:
@@ -65,7 +68,7 @@ def create_3class_field_raster_gdal(vector_path, output_path, pixel_size=10, bou
     shutil.copy2(fields_raster, output_path)
     
     # Overlay boundaries (value = 2)
-    cmd_overlay = f'''gdal_rasterize -burn 2 "{boundaries_shp}" "{output_path}"'''
+    cmd_overlay = f'''gdal_rasterize -burn 2 "{boundaries_shp}" "{str(output_path)}"'''
     
     if not run_gdal_command(cmd_overlay, "Overlaying boundaries"):
         # Fallback approach
@@ -74,7 +77,7 @@ def create_3class_field_raster_gdal(vector_path, output_path, pixel_size=10, bou
             run_gdal_command(cmd_overlay, "Overlaying boundaries (retry)")
     
     # Check if output exists
-    if not os.path.exists(output_path):
+    if not os.path.exists(str(output_path)):
         raise Exception(f"Could not create output file: {output_path}")
     
     # Optional: Add color table
@@ -100,9 +103,9 @@ def clip_raster_to_reference_gdal(input_raster, reference_raster, output_path):
     """Clip and align a raster to match exactly with a reference raster"""
     
     # Check input files exist
-    if not os.path.exists(input_raster):
+    if not os.path.exists(str(input_raster)):
         raise Exception(f"Input raster not found: {input_raster}")
-    if not os.path.exists(reference_raster):
+    if not os.path.exists(str(reference_raster)):
         raise Exception(f"Reference raster not found: {reference_raster}")
     
     # Get reference raster info
@@ -150,7 +153,7 @@ def clip_raster_to_reference_gdal(input_raster, reference_raster, output_path):
     if not run_gdal_command(cmd_warp, "Clipping and aligning raster"):
         raise Exception("Failed to clip raster")
     
-    if not os.path.exists(output_path):
+    if not os.path.exists(str(output_path)):
         raise Exception(f"Output file was not created: {output_path}")
 
 if __name__ == "__main__":
@@ -160,41 +163,41 @@ if __name__ == "__main__":
     # vector_tile_pairs = [
     #     {
     #         'vector': r"S:\E043 Crop classification and field delineation\04_FieldDelineation\TrainingData_Assignment\04_FromCeinsys\Results_AOI\Field_Delineation_Morocco_Ceinsys\AOIs_Morocco1.shp",
-    #         'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_bl_gtaoi.tif",
+    #         'sentinel': BASE_PATH / "morocco_bl_gtaoi.tif",
     #         'name': 'Morocco1_BL'
     #     },
     #     {
     #         'vector': r"S:\E043 Crop classification and field delineation\04_FieldDelineation\TrainingData_Assignment\04_FromCeinsys\Results_AOI\Field_Delineation_Morocco_Ceinsys\AOIs_Morocco2.shp",
-    #         'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_tr_gtaoi.tif",
+    #         'sentinel': BASE_PATH / "morocco_tr_gtaoi.tif",
     #         'name': 'Morocco2_TR'
     #     },
     #     {
     #         'vector': r"S:\E043 Crop classification and field delineation\04_FieldDelineation\TrainingData_Assignment\05_FromStef\Parcel GT Stef New.shp",
-    #         'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_br_gtaoi.tif",
+    #         'sentinel': BASE_PATH / "morocco_br_gtaoi.tif",
     #         'name': 'Stef_BR'
     #     }
     # ]
     
     # NEW CONFIGURATION - Using filtered polygons
-    filtered_polygons_path = r"C:\Users\qin.xu\github\ftw-baselines\Output\Threshold_0p02\morocco_active_fields_th0p02.shp"
+    filtered_polygons_path = BASE_PATH / "Output"/"Threshold_0p02"/"morocco_active_fields_th0p02.shp"
     
     # Reference Sentinel-2 tiles for alignment (keep all three for different AOI regions)
     reference_tiles = [
         {
-            'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_bl_gtaoi.tif",
+            'sentinel': BASE_PATH / "morocco_bl_gtaoi.tif",
             'name': 'Morocco1_BL'
         },
         {
-            'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_tr_gtaoi.tif",
+            'sentinel': BASE_PATH / "morocco_tr_gtaoi.tif",
             'name': 'Morocco2_TR'
         },
         {
-            'sentinel': r"C:\Users\qin.xu\github\ftw-baselines\morocco_br_gtaoi.tif",
+            'sentinel': BASE_PATH / "morocco_br_gtaoi.tif",
             'name': 'Stef_BR'
         }
     ]
     
-    output_dir = r"C:\Users\qin.xu\github\ftw-baselines"
+    output_dir = BASE_PATH
     
     # Check GDAL installation
     try:
@@ -205,7 +208,7 @@ if __name__ == "__main__":
         exit(1)
     
     # Check if filtered polygons file exists
-    if not os.path.exists(filtered_polygons_path):
+    if not os.path.exists(str(filtered_polygons_path)):
         print(f"Error: Filtered polygons file not found: {filtered_polygons_path}")
         print("Please run the NDVI filtering script first to generate the filtered polygons.")
         exit(1)
@@ -217,7 +220,7 @@ if __name__ == "__main__":
         aligned_rasters = []
         
         # Create base 3-class raster from filtered polygons
-        base_output_utm = f"{output_dir}\\morocco_filtered_3class_utm.tif"
+        base_output_utm = output_dir / "morocco_filtered_3class_utm.tif"
         print(f"\nCreating base 3-class raster...")
         
         result_path = create_3class_field_raster_gdal(
@@ -235,12 +238,12 @@ if __name__ == "__main__":
             print(f"\nAligning with {tile['name']} ({i+1}/{len(reference_tiles)})")
             
             # Check if reference tile exists
-            if not os.path.exists(tile['sentinel']):
+            if not os.path.exists(str(tile['sentinel'])):
                 print(f"Warning: Reference tile not found: {tile['sentinel']}")
                 continue
             
             # Define output path
-            output_aligned = f"{output_dir}\\morocco_filtered_3class_{tile['name']}_aligned.tif"
+            output_aligned = output_dir / f"morocco_filtered_3class_{tile['name']}_aligned.tif"
             
             # Align with Sentinel-2 tile
             clip_raster_to_reference_gdal(
