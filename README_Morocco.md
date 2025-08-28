@@ -36,6 +36,7 @@ src/morocco_ftw/
 **geopandas_parquet_merge.py**       # Alternative merging approach
 
 To set up the environment, the following command should conduct:
+```bash
 conda create -n ftw python=3.9 -y
 
 conda activate ftw
@@ -72,6 +73,7 @@ pip install ftw-tools
 
 pip install ftw-tools stackstac rioxarray pyarrow
 python -c "import rasterio; print(rasterio.__version__)"
+```
 
 # Usage
 ## 1. Create mosaics for Sentinel-2 imagery and NDVI-Based Field Filtering 
