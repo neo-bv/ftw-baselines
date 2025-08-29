@@ -6,6 +6,9 @@ AOI Vector Masking and Merging Script using GeoPandas for Parquet files
 import os
 import sys
 import logging
+from pathlib import Path  # Add this import if not already there
+BASE_PATH = Path(os.environ.get('FTW_BASE_PATH', Path(__file__).parent.parent.parent))
+print(f"Using base path: {BASE_PATH}")
 
 # Set up logging without Unicode characters
 logging.basicConfig(
@@ -28,22 +31,34 @@ def main():
         print("Please install geopandas: conda install geopandas")
         return False
     
-    base_path = r"C:\Users\qin.xu\github\ftw-baselines"
+    #base_path = r"C:\Users\qin.xu\github\ftw-baselines"
     
     # Input files
-    aoi_shapefile = os.path.join(base_path, "SECTEURS.shp")
-    input_parquets = [
-        os.path.join(base_path, "morocco_mid_mosaic3class-inf.parquet"),
-        os.path.join(base_path, "morocco_tr_aoi3class-inf.parquet"),
-        os.path.join(base_path, "morocco_mosaic3class-inf.parquet")
+    # aoi_shapefile = os.path.join(base_path, "SECTEURS.shp")
+    # input_parquets = [
+    #     os.path.join(base_path, "morocco_mid_mosaic3class-inf.parquet"),
+    #     os.path.join(base_path, "morocco_tr_aoi3class-inf.parquet"),
+    #     os.path.join(base_path, "morocco_mosaic3class-inf.parquet")
+    # ]
+    
+    # final_output = os.path.join(base_path, "morocco_merged_parquet_geopandas.gpkg")
+    aoi_shapefile = BASE_PATH / "SECTEURS.shp"
+    
+    potential_parquets = [
+        BASE_PATH / "morocco_mid_mosaic3class-inf.parquet",
+        BASE_PATH / "morocco_tr_aoi3class-inf.parquet",
+        BASE_PATH / "morocco_mosaic3class-inf.parquet",
     ]
+    input_parquets = []
+    for parquet_file in potential_parquets:
+        if parquet_file.exists():
+            input_parquets.append(parquet_file)
     
-    final_output = os.path.join(base_path, "morocco_merged_parquet_geopandas.gpkg")
-    
+    final_output = BASE_PATH / "morocco_merged_parquet_geopandas.gpkg"
     try:
         # Load AOI
         logger.info("Loading AOI shapefile...")
-        aoi_gdf = gpd.read_file(aoi_shapefile)
+        aoi_gdf = gpd.read_file(str(aoi_shapefile))
         logger.info(f"AOI loaded: {len(aoi_gdf)} polygons, CRS: {aoi_gdf.crs}")
         
         # Combine all AOI polygons into one
@@ -62,7 +77,7 @@ def main():
             
             try:
                 # Try to read as GeoParquet
-                gdf = gpd.read_parquet(parquet_file)
+                gdf = gpd.read_parquet(str(parquet_file))
                 logger.info(f"Loaded {len(gdf)} features, CRS: {gdf.crs}")
                 
                 # Reproject AOI to match data CRS if needed
@@ -105,7 +120,7 @@ def main():
             logger.info(f"Final merged dataset: {len(final_gdf)} features")
             
             # Save result
-            final_gdf.to_file(final_output, driver="GPKG")
+            final_gdf.to_file(str(final_output), driver="GPKG")
             logger.info(f"Saved to: {final_output}")
             
             return True
