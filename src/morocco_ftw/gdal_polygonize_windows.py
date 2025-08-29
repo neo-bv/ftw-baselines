@@ -7,6 +7,9 @@ GDAL polygonization script for raster data.
 import os
 import sys
 import time
+from pathlib import Path  # Add this import if not already there
+BASE_PATH = Path(os.environ.get('FTW_BASE_PATH', Path(__file__).parent.parent.parent))
+print(f"Using base path: {BASE_PATH}")
 
 def check_gdal_installation():
     """Check if GDAL is properly installed."""
@@ -31,7 +34,7 @@ def polygonize_raster(input_raster, output_vector, filter_value=1):
     
     try:
         # Open source raster
-        src_ds = gdal.Open(input_raster, gdal.GA_ReadOnly)
+        src_ds = gdal.Open(str(input_raster), gdal.GA_ReadOnly)
         if src_ds is None:
             raise Exception(f"Could not open {input_raster}")
         
@@ -61,9 +64,9 @@ def polygonize_raster(input_raster, output_vector, filter_value=1):
         # Create output file
         out_driver = ogr.GetDriverByName('GPKG')
         if os.path.exists(output_vector):
-            out_driver.DeleteDataSource(output_vector)
+            out_driver.DeleteDataSource(str(output_vector))
         
-        out_ds = out_driver.CreateDataSource(output_vector)
+        out_ds = out_driver.CreateDataSource(str(output_vector))
         out_layer = out_ds.CreateLayer('field_boundaries', srs=srs)
         
         # Add output fields
@@ -131,34 +134,65 @@ def polygonize_raster(input_raster, output_vector, filter_value=1):
         print(f"Error during polygonization: {e}")
         return False
 
+# def main():
+#     if len(sys.argv) < 2:
+#         print("Usage: python gdal_polygonize.py <input_raster> [output_vector]")
+#         return 1
+    
+#     input_raster = sys.argv[1]
+    
+#     if len(sys.argv) >= 3:
+#         output_vector = sys.argv[2]
+#     else:
+#         base_name = os.path.splitext(input_raster)[0]
+#         output_vector = f"{base_name}_boundaries.gpkg"
+        
+    
+#     if not os.path.exists(input_raster):
+#         print(f"Error: Input file {input_raster} does not exist")
+#         return 1
+    
+#     if not check_gdal_installation():
+#         return 1
+    
+#     success = polygonize_raster(input_raster, output_vector, filter_value=1)
+    
+#     if success:
+#         print("Polygonization completed successfully")
+#         return 0
+#     else:
+#         print("Polygonization failed")
+#         return 1
 def main():
+    BASE_PATH = Path(os.environ.get('FTW_BASE_PATH', Path(__file__).parent.parent.parent))
+    
     if len(sys.argv) < 2:
-        print("Usage: python gdal_polygonize.py <input_raster> [output_vector]")
+        print("Usage: python gdal_polygonize_windows.py <input_raster> [output_vector]")
         return 1
     
     input_raster = sys.argv[1]
     
+    # Smart path resolution
+    input_path = Path(input_raster)
+    if not input_path.is_absolute():
+        input_path = BASE_PATH / input_raster
+        if not input_path.exists():
+            input_path = Path(input_raster).resolve()
+    
+    # Output path handling
     if len(sys.argv) >= 3:
-        output_vector = sys.argv[2]
+        output_path = Path(sys.argv[2])
+        if not output_path.is_absolute():
+            output_path = BASE_PATH / sys.argv[2]
     else:
-        base_name = os.path.splitext(input_raster)[0]
-        output_vector = f"{base_name}_boundaries.gpkg"
+        base_name = input_path.stem
+        output_path = BASE_PATH / f"{base_name}_boundaries.gpkg"
     
-    if not os.path.exists(input_raster):
-        print(f"Error: Input file {input_raster} does not exist")
+    if not input_path.exists():
+        print(f"Error: Input file {input_path} does not exist")
         return 1
     
-    if not check_gdal_installation():
-        return 1
-    
-    success = polygonize_raster(input_raster, output_vector, filter_value=1)
-    
-    if success:
-        print("Polygonization completed successfully")
-        return 0
-    else:
-        print("Polygonization failed")
-        return 1
+    success = polygonize_raster(str(input_path), str(output_path), filter_value=1)
 
 if __name__ == "__main__":
     sys.exit(main())
