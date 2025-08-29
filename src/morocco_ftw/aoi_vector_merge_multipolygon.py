@@ -9,6 +9,9 @@ import sys
 from pathlib import Path
 import logging
 import traceback
+from pathlib import Path  # Add this import if not already there
+BASE_PATH = Path(os.environ.get('FTW_BASE_PATH', Path(__file__).parent.parent.parent))
+print(f"Using base path: {BASE_PATH}")
 
 # Set up logging
 logging.basicConfig(
@@ -16,7 +19,8 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('aoi_vector_merge.log')
+        #logging.FileHandler('aoi_vector_merge.log')
+        logging.FileHandler(str(BASE_PATH / 'aoi_vector_merge.log'))
     ]
 )
 logger = logging.getLogger(__name__)
@@ -253,25 +257,33 @@ def main():
         logger.info("Starting AOI Vector Masking and Merging Process")
         
         # Get paths
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        base_path = os.path.dirname(os.path.dirname(script_dir))
+        #script_dir = os.path.dirname(os.path.abspath(__file__))
+        #base_path = os.path.dirname(os.path.dirname(script_dir))
         
-        logger.info(f"Script directory: {script_dir}")
-        logger.info(f"Base directory: {base_path}")
+        #logger.info(f"Script directory: {script_dir}")
+        #logger.info(f"Base directory: {base_path}")
         
         # Input files - Updated for parquet files
-        aoi_shapefile = os.path.join(base_path, "SECTEURS.shp")
-        
+        #aoi_shapefile = os.path.join(base_path, "SECTEURS.shp")
+        aoi_shapefile = BASE_PATH / "SECTEURS.shp"
+
         # Parquet files (update these paths as needed)
+        # input_vectors = [
+        #     r"C:\Users\qin.xu\github\ftw-baselines\morocco_mosaic_morocco_CCBY_filtered0.02.parquet",
+        #     r"C:\Users\qin.xu\github\ftw-baselines\morocco_tr_aoi_morocco_CCBY_filtered0.02.parquet",
+        #     r"C:\Users\qin.xu\github\ftw-baselines\morocco_mid_mosaic_morocco_CCBY_filtered0.02.parquet"
+        # ]
         input_vectors = [
-            r"C:\Users\qin.xu\github\ftw-baselines\morocco_mosaic_morocco_CCBY_filtered0.02.parquet",
-            r"C:\Users\qin.xu\github\ftw-baselines\morocco_tr_aoi_morocco_CCBY_filtered0.02.parquet",
-            r"C:\Users\qin.xu\github\ftw-baselines\morocco_mid_mosaic_morocco_CCBY_filtered0.02.parquet"
-        ]
+        BASE_PATH / "morocco_mid_mosaic_filtered_inference_boundaries.gpkg",
+        BASE_PATH / "morocco_mosaic_filtered_inference_boundaries.gpkg",
+        BASE_PATH / "morocco_tr_aoi_filtered_inference_boundaries.gpkg"
+    ]
         
-        temp_dir = os.path.join(base_path, "temp_clipped_morocco_filtered0.02_parquet")
-        final_output = os.path.join(base_path, "morocco_merged_morocco_CCBY_filtered0.02_ALL_AOI.parquet")  # Changed to parquet
-        
+        #temp_dir = os.path.join(base_path, "temp_clipped_morocco_filtered0.02_parquet")
+        #final_output = os.path.join(base_path, "morocco_merged_morocco_CCBY_filtered0.02_ALL_AOI.parquet")  # Changed to parquet
+        temp_dir = BASE_PATH / "temp_clipped_morocco_filtered"
+        final_output = BASE_PATH / "morocco_merged_morocco_filtered_ALL_AOI.gpkg"
+
         # Log paths
         logger.info(f"AOI shapefile: {aoi_shapefile}")
         logger.info(f"Input vectors: {input_vectors}")
